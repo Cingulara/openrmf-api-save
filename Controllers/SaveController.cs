@@ -39,7 +39,7 @@ namespace openstig_save_api.Controllers
 
         // GET api/values
         [HttpPost]
-        public async Task<IActionResult> SaveArtifact([[FromForm] Artifact newArtifact)
+        public async Task<IActionResult> SaveArtifact([FromForm] Artifact newArtifact)
         {
             try {
                 await _artifactRepo.AddArtifact(newArtifact);
