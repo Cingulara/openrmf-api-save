@@ -30,3 +30,8 @@
 *.exe
 *.out
 *.app
+
+# C# directories we do not need
+bin
+obj
+c/\temp\internal-nlog.txt
