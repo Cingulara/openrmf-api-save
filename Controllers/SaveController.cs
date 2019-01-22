@@ -19,6 +19,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
+using System.Xml.Serialization;
+using System.Xml;
 
 using openstig_save_api.Data;
 
@@ -42,7 +44,20 @@ namespace openstig_save_api.Controllers
         public async Task<IActionResult> SaveArtifact([FromForm] Artifact newArtifact)
         {
             try {
-                await _artifactRepo.AddArtifact(newArtifact);
+                CHECKLIST myChecklist = new CHECKLIST();
+                XmlSerializer serializer = new XmlSerializer(typeof(CHECKLIST));
+                using (TextReader reader = new StringReader(newArtifact.rawChecklist))
+                {
+                    myChecklist = (CHECKLIST)serializer.Deserialize(reader);
+                }
+                await _artifactRepo.AddArtifact(new Artifact () {
+                    id = Guid.NewGuid(),
+                    title = newArtifact.title,
+                    created = DateTime.Now,
+                    UpdatedOn = DateTime.Now,
+                    type = newArtifact.type,
+                    Checklist = myChecklist
+                });
                 return Ok();
             }
             catch (Exception ex) {

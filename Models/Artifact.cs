@@ -15,6 +15,7 @@ namespace openstig_save_api.Models
         public DateTime created { get; set; }
         public string title { get; set; }
         public CHECKLIST Checklist { get; set; }
+        public string rawChecklist { get; set; }
         [BsonId]
         public Guid id { get; set; }
         public STIGtype type { get; set; }

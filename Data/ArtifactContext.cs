@@ -19,7 +19,7 @@ namespace openstig_save_api.Data
         {
             get
             {
-                return _database.GetCollection<Artifact>("Artifact");
+                return _database.GetCollection<Artifact>("Artifacts");
             }
         }
     }
