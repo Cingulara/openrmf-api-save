@@ -49,7 +49,6 @@ namespace openstig_save_api.Controllers
                     myChecklist = (CHECKLIST)serializer.Deserialize(reader);
                 }*/
                 await _artifactRepo.AddArtifact(new Artifact () {
-                    id = Guid.NewGuid(),
                     title = newArtifact.title,
                     created = DateTime.Now,
                     UpdatedOn = DateTime.Now,

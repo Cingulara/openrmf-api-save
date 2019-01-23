@@ -30,16 +30,24 @@ namespace openstig_save_api.Data {
             }
         }
 
+        private ObjectId GetInternalId(string id)
+        {
+            ObjectId internalId;
+            if (!ObjectId.TryParse(id, out internalId))
+                internalId = ObjectId.Empty;
+
+            return internalId;
+        }
         // query after Id or InternalId (BSonId value)
         //
         public async Task<Artifact> GetArtifact(string id)
         {
             try
             {
-                Guid internalId = GetInternalId(id);
+                ObjectId internalId = GetInternalId(id);
                 return await _context.Artifacts
                                 .Find(artifact => artifact.id.ToString() == id 
-                                        || artifact.id == internalId).FirstOrDefaultAsync();
+                                    || artifact.InternalId == internalId).FirstOrDefaultAsync();
             }
             catch (Exception ex)
             {
@@ -64,15 +72,6 @@ namespace openstig_save_api.Data {
                 // log or manage the exception
                 throw ex;
             }
-        }
-
-        private Guid GetInternalId(string id)
-        {
-            Guid internalId;
-            if (!Guid.TryParse(id, out internalId))
-                internalId = Guid.Empty;
-
-            return internalId;
         }
         
         public async Task AddArtifact(Artifact item)

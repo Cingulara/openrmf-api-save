@@ -12,3 +12,13 @@ use admin
 db.createUser({ user: "openstig" , pwd: "openstig1234!", roles: ["readWriteAnyDatabase"]});
 use openstig
 db.createCollection("Artifacts");
+
+## creating the user
+* ~/mongodb/bin/mongo 'mongodb://root:myp2ssw0rd@192.168.11.46'
+* use admin
+* db.createUser({ user: "openstig" , pwd: "openstig1234!", roles: ["readWriteAnyDatabase"]});
+* use openstig
+* db.createCollection("Artifacts");
+
+## connecting to the database collection straight
+~/mongodb/bin/mongo 'mongodb://openstig:openstig1234!@192.168.11.46/openstig?authSource=admin'
