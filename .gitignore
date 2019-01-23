@@ -35,3 +35,6 @@
 bin
 obj
 c/\temp\internal-nlog.txt
+
+# MAC OSX
+.DS_Store

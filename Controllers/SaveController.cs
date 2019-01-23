@@ -19,14 +19,12 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
-using System.Xml.Serialization;
-using System.Xml;
 
 using openstig_save_api.Data;
 
 namespace openstig_save_api.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("[controller]")]
     public class SaveController : Controller
     {
 	    private readonly IArtifactRepository _artifactRepo;
