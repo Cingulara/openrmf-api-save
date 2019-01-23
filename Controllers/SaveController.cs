@@ -43,18 +43,18 @@ namespace openstig_save_api.Controllers
         {
             try {
                 CHECKLIST myChecklist = new CHECKLIST();
-                XmlSerializer serializer = new XmlSerializer(typeof(CHECKLIST));
+                /* XmlSerializer serializer = new XmlSerializer(typeof(CHECKLIST));
                 using (TextReader reader = new StringReader(newArtifact.rawChecklist))
                 {
                     myChecklist = (CHECKLIST)serializer.Deserialize(reader);
-                }
+                }*/
                 await _artifactRepo.AddArtifact(new Artifact () {
                     id = Guid.NewGuid(),
                     title = newArtifact.title,
                     created = DateTime.Now,
                     UpdatedOn = DateTime.Now,
                     type = newArtifact.type,
-                    Checklist = myChecklist
+                    rawChecklist = newArtifact.rawChecklist
                 });
                 return Ok();
             }
