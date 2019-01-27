@@ -1,8 +1,8 @@
 # openstig-api-save
 This is the openSTIG Save API for scoring a checklist. It has two calls.
 
-POST to /save/ to save a new document
-PUT to /save/{id} to update a document
+POST to / to save a new document
+PUT to /{id} to update a document
 
 /swagger/ gives you the API structure.
 
