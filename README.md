@@ -1,5 +1,5 @@
 # openstig-api-save
-This is the openSTIG Save API for scoring a checklist. It has two calls.
+This is the openSTIG Save API for saving a checklist and its metadata. It has two calls.
 
 POST to / to save a new document
 PUT to /{id} to update a document
