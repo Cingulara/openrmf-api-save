@@ -36,7 +36,7 @@ namespace openstig_save_api.Controllers
             _artifactRepo = artifactRepo;
         }
 
-        // GET api/values
+        // POST as new
         [HttpPost]
         public async Task<IActionResult> SaveArtifact([FromForm] Artifact newArtifact)
         {
@@ -44,6 +44,26 @@ namespace openstig_save_api.Controllers
                 await _artifactRepo.AddArtifact(new Artifact () {
                     title = newArtifact.title,
                     created = DateTime.Now,
+                    UpdatedOn = DateTime.Now,
+                    type = newArtifact.type,
+                    rawChecklist = newArtifact.rawChecklist
+                });
+                return Ok();
+            }
+            catch (Exception ex) {
+                _logger.LogError(ex, "Error Saving");
+                return BadRequest();
+            }
+        }
+
+        // PUT as new
+        [HttpPut]
+        public async Task<IActionResult> UpdateArtifact([FromForm] Artifact newArtifact)
+        {
+            try {
+                await _artifactRepo.UpdateArtifact(newArtifact.id.ToString(), new Artifact () {
+                    title = newArtifact.title,
+                    created = newArtifact.created,
                     UpdatedOn = DateTime.Now,
                     type = newArtifact.type,
                     rawChecklist = newArtifact.rawChecklist

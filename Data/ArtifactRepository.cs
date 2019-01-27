@@ -127,21 +127,21 @@ namespace openstig_save_api.Data {
             }
         }
 
-        public async Task<bool> RemoveAllArtifacts()
-        {
-            try
-            {
-                DeleteResult actionResult 
-                    = await _context.Artifacts.DeleteManyAsync(new BsonDocument());
+        // public async Task<bool> RemoveAllArtifacts()
+        // {
+        //     try
+        //     {
+        //         DeleteResult actionResult 
+        //             = await _context.Artifacts.DeleteManyAsync(new BsonDocument());
 
-                return actionResult.IsAcknowledged
-                    && actionResult.DeletedCount > 0;
-            }
-            catch (Exception ex)
-            {
-                // log or manage the exception
-                throw ex;
-            }
-        }
+        //         return actionResult.IsAcknowledged
+        //             && actionResult.DeletedCount > 0;
+        //     }
+        //     catch (Exception ex)
+        //     {
+        //         // log or manage the exception
+        //         throw ex;
+        //     }
+        // }
     }
 }
