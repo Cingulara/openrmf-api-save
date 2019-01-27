@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using openstig_save_api.Classes;
 using openstig_save_api.Models;
 using System.IO;
 using System.Text;
@@ -24,7 +23,7 @@ using openstig_save_api.Data;
 
 namespace openstig_save_api.Controllers
 {
-    [Route("[controller]")]
+    [Route("/")]
     public class SaveController : Controller
     {
 	    private readonly IArtifactRepository _artifactRepo;
@@ -42,12 +41,6 @@ namespace openstig_save_api.Controllers
         public async Task<IActionResult> SaveArtifact([FromForm] Artifact newArtifact)
         {
             try {
-                CHECKLIST myChecklist = new CHECKLIST();
-                /* XmlSerializer serializer = new XmlSerializer(typeof(CHECKLIST));
-                using (TextReader reader = new StringReader(newArtifact.rawChecklist))
-                {
-                    myChecklist = (CHECKLIST)serializer.Deserialize(reader);
-                }*/
                 await _artifactRepo.AddArtifact(new Artifact () {
                     title = newArtifact.title,
                     created = DateTime.Now,
