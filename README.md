@@ -21,4 +21,4 @@ db.createCollection("Artifacts");
 * db.createCollection("Artifacts");
 
 ## connecting to the database collection straight
-~/mongodb/bin/mongo 'mongodb://openstig:openstig1234!@192.168.11.46/openstig?authSource=admin'
+~/mongodb/bin/mongo 'mongodb://openstig:openstig1234!@localhost/openstig?authSource=admin'
