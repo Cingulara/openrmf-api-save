@@ -28,7 +28,6 @@ namespace openstig_save_api.Controllers
     {
 	    private readonly IArtifactRepository _artifactRepo;
         private readonly ILogger<SaveController> _logger;
-        const string exampleSTIG = "/examples/asd-example.ckl";
 
         public SaveController(IArtifactRepository artifactRepo, ILogger<SaveController> logger)
         {
@@ -43,8 +42,8 @@ namespace openstig_save_api.Controllers
             try {
                 await _artifactRepo.AddArtifact(new Artifact () {
                     title = newArtifact.title,
+                    description = newArtifact.description,
                     created = DateTime.Now,
-                    UpdatedOn = DateTime.Now,
                     type = newArtifact.type,
                     rawChecklist = newArtifact.rawChecklist
                 });
@@ -63,10 +62,11 @@ namespace openstig_save_api.Controllers
             try {
                 await _artifactRepo.UpdateArtifact(newArtifact.id.ToString(), new Artifact () {
                     title = newArtifact.title,
+                    description = newArtifact.description,
                     created = newArtifact.created,
-                    UpdatedOn = DateTime.Now,
                     type = newArtifact.type,
-                    rawChecklist = newArtifact.rawChecklist
+                    rawChecklist = newArtifact.rawChecklist,
+                    updatedOn = DateTime.Now
                 });
                 return Ok();
             }
