@@ -14,6 +14,8 @@ using Swashbuckle.AspNetCore.Swagger;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 
+using NATS.Client;
+
 using openstig_save_api.Models;
 using openstig_save_api.Data;
 
@@ -32,13 +34,21 @@ namespace openstig_save_api
         public void ConfigureServices(IServiceCollection services)
         {
             // Register the database components
-
             services.Configure<Settings>(options =>
             {
                 options.ConnectionString = Environment.GetEnvironmentVariable("mongoConnection");
                 options.Database = Environment.GetEnvironmentVariable("mongodb");
             });
             
+            // Create a new connection factory to create a connection.
+            ConnectionFactory cf = new ConnectionFactory();
+            IConnection conn = cf.CreateConnection();
+            // setup the NATS server
+            services.Configure<NATSServer>(options =>
+            {
+                options.connection = conn;
+            });
+
             services.AddTransient<IArtifactRepository, ArtifactRepository>();
 
             // Register the Swagger generator, defining one or more Swagger documents
