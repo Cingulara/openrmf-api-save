@@ -78,7 +78,7 @@ namespace openstig_save_api.Controllers
                     InternalId = newArtifact.InternalId
                 });
                 // publish to the openstig save new realm the new ID we can use
-                _msgServer.Publish("openstig.save.update", Encoding.UTF8.GetBytes(newArtifact.ToString()));
+                _msgServer.Publish("openstig.save.update", Encoding.UTF8.GetBytes(newArtifact.id.ToString()));
                 return Ok();
             }
             catch (Exception ex) {
