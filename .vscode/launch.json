@@ -33,7 +33,8 @@
                 "ASPNETCORE_ENVIRONMENT": "Development",
                 "ASPNETCORE_URLS": "http://*:8082",
                 "mongoConnection": "mongodb://openstig:openstig1234!@localhost",
-                "mongodb": "openstig"
+                "mongodb": "openstig",
+                "natsserverurl" : "nats://192.168.11.46:4222"
             },
             "sourceFileMap": {
                 "/Views": "${workspaceFolder}/Views"

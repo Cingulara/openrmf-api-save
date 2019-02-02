@@ -42,7 +42,7 @@ namespace openstig_save_api
             
             // Create a new connection factory to create a connection.
             ConnectionFactory cf = new ConnectionFactory();
-            IConnection conn = cf.CreateConnection();
+            IConnection conn = cf.CreateConnection(Environment.GetEnvironmentVariable("natsserverurl"));
             // setup the NATS server
             services.Configure<NATSServer>(options =>
             {
