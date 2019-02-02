@@ -6,12 +6,8 @@ PUT to /{id} to update a document
 
 /swagger/ gives you the API structure.
 
-## creating the user
-
-use admin
-db.createUser({ user: "openstig" , pwd: "openstig1234!", roles: ["readWriteAnyDatabase"]});
-use openstig
-db.createCollection("Artifacts");
+## Making your local Docker image
+docker build --rm -t openstig-api-save:0.1 .
 
 ## creating the user
 * ~/mongodb/bin/mongo 'mongodb://root:myp2ssw0rd@localhost'

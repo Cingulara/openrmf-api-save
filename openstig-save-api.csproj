@@ -5,7 +5,11 @@
     <AspNetCoreHostingModel>InProcess</AspNetCoreHostingModel>
     <RootNamespace>openstig_save_api</RootNamespace>
     <PublishWithAspNetCoreTargetManifest>false</PublishWithAspNetCoreTargetManifest>
-    <ProjectGuid>{05a94d30-9b4d-4bdc-b312-7f35957ea1a9}</ProjectGuid>
+    <ProjectGuid>{b1851548-3b3e-4f71-a428-9b9889b28e3b}</ProjectGuid>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+    <Version>0.1</Version>
+    <InformationalVersion>This is an alpha of the openSTIG Tool Save API from Cingulara</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
