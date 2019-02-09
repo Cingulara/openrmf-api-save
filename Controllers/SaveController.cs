@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using openstig_save_api.Classes;
 using openstig_save_api.Models;
 using System.IO;
 using System.Text;
@@ -19,45 +18,67 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
-using System.Xml.Serialization;
-using System.Xml;
+using NATS.Client;
 
 using openstig_save_api.Data;
 
 namespace openstig_save_api.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("/")]
     public class SaveController : Controller
     {
 	    private readonly IArtifactRepository _artifactRepo;
         private readonly ILogger<SaveController> _logger;
-        const string exampleSTIG = "/examples/asd-example.ckl";
+        private readonly IConnection _msgServer;
 
-        public SaveController(IArtifactRepository artifactRepo, ILogger<SaveController> logger)
+        public SaveController(IArtifactRepository artifactRepo, ILogger<SaveController> logger, IOptions<NATSServer> msgServer)
         {
             _logger = logger;
             _artifactRepo = artifactRepo;
+            _msgServer = msgServer.Value.connection;
         }
 
-        // GET api/values
+        // POST as new
         [HttpPost]
         public async Task<IActionResult> SaveArtifact([FromForm] Artifact newArtifact)
         {
             try {
-                CHECKLIST myChecklist = new CHECKLIST();
-                XmlSerializer serializer = new XmlSerializer(typeof(CHECKLIST));
-                using (TextReader reader = new StringReader(newArtifact.rawChecklist))
-                {
-                    myChecklist = (CHECKLIST)serializer.Deserialize(reader);
-                }
+                Guid newId = Guid.NewGuid();
                 await _artifactRepo.AddArtifact(new Artifact () {
-                    id = Guid.NewGuid(),
+                    id = newId,
                     title = newArtifact.title,
+                    description = newArtifact.description,
                     created = DateTime.Now,
-                    UpdatedOn = DateTime.Now,
                     type = newArtifact.type,
-                    Checklist = myChecklist
+                    rawChecklist = newArtifact.rawChecklist
                 });
+                // publish to the openstig save new realm the new ID we can use
+                _msgServer.Publish("openstig.save.new", Encoding.UTF8.GetBytes(newId.ToString()));
+                return Ok();
+            }
+            catch (Exception ex) {
+                _logger.LogError(ex, "Error Saving");
+                return BadRequest();
+            }
+        }
+
+        // PUT as new
+        [HttpPut]
+        public async Task<IActionResult> UpdateArtifact([FromForm] Artifact newArtifact)
+        {
+            try {
+                await _artifactRepo.UpdateArtifact(newArtifact.id.ToString(), new Artifact () {
+                    title = newArtifact.title,
+                    description = newArtifact.description,
+                    created = newArtifact.created,
+                    type = newArtifact.type,
+                    rawChecklist = newArtifact.rawChecklist,
+                    updatedOn = DateTime.Now,
+                    id = newArtifact.id,
+                    InternalId = newArtifact.InternalId
+                });
+                // publish to the openstig save new realm the new ID we can use
+                _msgServer.Publish("openstig.save.update", Encoding.UTF8.GetBytes(newArtifact.id.ToString()));
                 return Ok();
             }
             catch (Exception ex) {
