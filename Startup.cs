@@ -14,6 +14,8 @@ using Swashbuckle.AspNetCore.Swagger;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 
+using NATS.Client;
+
 using openstig_save_api.Models;
 using openstig_save_api.Data;
 
@@ -32,25 +34,33 @@ namespace openstig_save_api
         public void ConfigureServices(IServiceCollection services)
         {
             // Register the database components
-
             services.Configure<Settings>(options =>
             {
                 options.ConnectionString = Environment.GetEnvironmentVariable("mongoConnection");
                 options.Database = Environment.GetEnvironmentVariable("mongodb");
             });
             
+            // Create a new connection factory to create a connection.
+            ConnectionFactory cf = new ConnectionFactory();
+            IConnection conn = cf.CreateConnection(Environment.GetEnvironmentVariable("natsserverurl"));
+            // setup the NATS server
+            services.Configure<NATSServer>(options =>
+            {
+                options.connection = conn;
+            });
+
             services.AddTransient<IArtifactRepository, ArtifactRepository>();
 
             // Register the Swagger generator, defining one or more Swagger documents
             services.AddSwaggerGen(c =>
             {
-                c.SwaggerDoc("v1", new Info { Title = "openSTIG Scoring API", Version = "v1", 
-                    Description = "The Scoring API that goes with the openSTIG tool",
+                c.SwaggerDoc("v1", new Info { Title = "openSTIG Save API", Version = "v1", 
+                    Description = "The Save API that goes with the openSTIG tool",
                     Contact = new Contact
                     {
                         Name = "Dale Bingham",
                         Email = "dale.bingham@cingulara.com",
-                        Url = "https://github.com/Cingulara/openstig-api-scoring"
+                        Url = "https://github.com/Cingulara/openstig-api-save"
                     } });
             });
 
@@ -70,9 +80,6 @@ namespace openstig_save_api
                     });
             });
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
-
-            // add this in memory for now. Persist later.
-        	services.AddDistributedMemoryCache();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -94,7 +101,7 @@ namespace openstig_save_api
             // Enable middleware to serve swagger-ui (HTML, JS, CSS, etc.), specifying the Swagger JSON endpoint.
             app.UseSwaggerUI(c =>
             {
-                c.SwaggerEndpoint("/swagger/v1/swagger.json", "openSTIG Score API V1");
+                c.SwaggerEndpoint("/swagger/v1/swagger.json", "openSTIG Save API V1");
             });
 
             // ********************

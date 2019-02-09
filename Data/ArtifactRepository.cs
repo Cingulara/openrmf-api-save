@@ -30,16 +30,24 @@ namespace openstig_save_api.Data {
             }
         }
 
+        private ObjectId GetInternalId(string id)
+        {
+            ObjectId internalId;
+            if (!ObjectId.TryParse(id, out internalId))
+                internalId = ObjectId.Empty;
+
+            return internalId;
+        }
         // query after Id or InternalId (BSonId value)
         //
         public async Task<Artifact> GetArtifact(string id)
         {
             try
             {
-                Guid internalId = GetInternalId(id);
+                ObjectId internalId = GetInternalId(id);
                 return await _context.Artifacts
                                 .Find(artifact => artifact.id.ToString() == id 
-                                        || artifact.id == internalId).FirstOrDefaultAsync();
+                                    || artifact.InternalId == internalId).FirstOrDefaultAsync();
             }
             catch (Exception ex)
             {
@@ -55,7 +63,7 @@ namespace openstig_save_api.Data {
             try
             {
                 var query = _context.Artifacts.Find(artifact => artifact.title.Contains(bodyText) &&
-                                    artifact.UpdatedOn >= updatedFrom);
+                                    artifact.updatedOn >= updatedFrom);
 
                 return await query.ToListAsync();
             }
@@ -64,15 +72,6 @@ namespace openstig_save_api.Data {
                 // log or manage the exception
                 throw ex;
             }
-        }
-
-        private Guid GetInternalId(string id)
-        {
-            Guid internalId;
-            if (!Guid.TryParse(id, out internalId))
-                internalId = Guid.Empty;
-
-            return internalId;
         }
         
         public async Task AddArtifact(Artifact item)
@@ -111,7 +110,7 @@ namespace openstig_save_api.Data {
             var filter = Builders<Artifact>.Filter.Eq(s => s.id.ToString(), id);
             var update = Builders<Artifact>.Update
                             .Set(s => s, body)
-                            .CurrentDate(s => s.UpdatedOn);
+                            .CurrentDate(s => s.updatedOn);
 
             try
             {
@@ -128,21 +127,21 @@ namespace openstig_save_api.Data {
             }
         }
 
-        public async Task<bool> RemoveAllArtifacts()
-        {
-            try
-            {
-                DeleteResult actionResult 
-                    = await _context.Artifacts.DeleteManyAsync(new BsonDocument());
+        // public async Task<bool> RemoveAllArtifacts()
+        // {
+        //     try
+        //     {
+        //         DeleteResult actionResult 
+        //             = await _context.Artifacts.DeleteManyAsync(new BsonDocument());
 
-                return actionResult.IsAcknowledged
-                    && actionResult.DeletedCount > 0;
-            }
-            catch (Exception ex)
-            {
-                // log or manage the exception
-                throw ex;
-            }
-        }
+        //         return actionResult.IsAcknowledged
+        //             && actionResult.DeletedCount > 0;
+        //     }
+        //     catch (Exception ex)
+        //     {
+        //         // log or manage the exception
+        //         throw ex;
+        //     }
+        // }
     }
 }

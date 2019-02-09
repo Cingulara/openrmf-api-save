@@ -22,6 +22,6 @@ namespace openstig_save_api.Data {
         Task<bool> UpdateArtifact(string id, Artifact body);
 
         // should be used with high cautious, only in relation with demo setup
-        Task<bool> RemoveAllArtifacts();
+        // Task<bool> RemoveAllArtifacts();
     }
 }
