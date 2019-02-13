@@ -49,6 +49,7 @@ namespace openstig_save_api.Controllers
                     title = newArtifact.title,
                     description = newArtifact.description,
                     created = DateTime.Now,
+                    updatedOn = DateTime.Now,
                     type = newArtifact.type,
                     rawChecklist = newArtifact.rawChecklist
                 });
