@@ -42,7 +42,7 @@ namespace openstig_save_api.Controllers
         public async Task<IActionResult> SaveArtifact([FromForm] Artifact newArtifact)
         {
             try {
-                await _artifactRepo.AddArtifact(new Artifact () {
+                var record = await _artifactRepo.AddArtifact(new Artifact () {
                     title = newArtifact.title,
                     description = newArtifact.description,
                     created = DateTime.Now,
@@ -51,7 +51,7 @@ namespace openstig_save_api.Controllers
                     rawChecklist = newArtifact.rawChecklist
                 });
                 // publish to the openstig save new realm the new ID we can use
-                _msgServer.Publish("openstig.save.new", Encoding.UTF8.GetBytes(newArtifact.InternalId.ToString()));
+                _msgServer.Publish("openstig.save.new", Encoding.UTF8.GetBytes(record.InternalId.ToString()));
                 return Ok();
             }
             catch (Exception ex) {

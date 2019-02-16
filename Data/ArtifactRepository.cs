@@ -73,11 +73,12 @@ namespace openstig_save_api.Data {
             }
         }
         
-        public async Task AddArtifact(Artifact item)
+        public async Task<Artifact> AddArtifact(Artifact item)
         {
             try
             {
                 await _context.Artifacts.InsertOneAsync(item);
+                return item;
             }
             catch (Exception ex)
             {
