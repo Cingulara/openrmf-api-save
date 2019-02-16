@@ -61,21 +61,19 @@ namespace openstig_save_api.Controllers
         }
 
         // PUT as new
-        [HttpPut]
-        public async Task<IActionResult> UpdateArtifact([FromForm] Artifact newArtifact)
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateArtifact(string id, [FromForm] Artifact newArtifact)
         {
             try {
-                await _artifactRepo.UpdateArtifact(newArtifact.InternalId.ToString(), new Artifact () {
+                await _artifactRepo.UpdateArtifact(id, new Artifact () {
                     title = newArtifact.title,
                     description = newArtifact.description,
                     created = newArtifact.created,
                     type = newArtifact.type,
-                    rawChecklist = newArtifact.rawChecklist,
-                    updatedOn = DateTime.Now,
-                    InternalId = newArtifact.InternalId
+                    updatedOn = DateTime.Now
                 });
                 // publish to the openstig save new realm the new ID we can use
-                _msgServer.Publish("openstig.save.update", Encoding.UTF8.GetBytes(newArtifact.InternalId.ToString()));
+                _msgServer.Publish("openstig.save.update", Encoding.UTF8.GetBytes(id));
                 return Ok();
             }
             catch (Exception ex) {

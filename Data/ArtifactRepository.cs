@@ -92,8 +92,16 @@ namespace openstig_save_api.Data {
             try
             {
                 body.InternalId = GetInternalId(id);
-                var actionResult = await _context.Artifacts.ReplaceOneAsync(filter, body);
-                return actionResult.IsAcknowledged && actionResult.ModifiedCount > 0;
+                // only save the data outside of the checklist, update the date
+                var currentRecord = await _context.Artifacts.Find(artifact => artifact.InternalId == body.InternalId).FirstOrDefaultAsync();
+                if (currentRecord != null){
+                    body.rawChecklist = currentRecord.rawChecklist;
+                    var actionResult = await _context.Artifacts.ReplaceOneAsync(filter, body);
+                    return actionResult.IsAcknowledged && actionResult.ModifiedCount > 0;
+                } 
+                else {
+                    throw new KeyNotFoundException();
+                }
             }
             catch (Exception ex)
             {
