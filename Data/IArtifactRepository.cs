@@ -13,15 +13,9 @@ namespace openstig_save_api.Data {
         Task<IEnumerable<Artifact>> GetArtifact(string bodyText, DateTime updatedFrom, long headerSizeLimit);
 
         // add new note document
-        Task AddArtifact(Artifact item);
-
-        // remove a single document
-        Task<bool> RemoveArtifact(string id);
+        Task<Artifact> AddArtifact(Artifact item);
 
         // update just a single document
         Task<bool> UpdateArtifact(string id, Artifact body);
-
-        // should be used with high cautious, only in relation with demo setup
-        // Task<bool> RemoveAllArtifacts();
     }
 }
