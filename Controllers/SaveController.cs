@@ -1,5 +1,4 @@
-﻿
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -16,7 +15,6 @@ using Newtonsoft.Json;
 using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using NATS.Client;
 
@@ -43,9 +41,7 @@ namespace openstig_save_api.Controllers
         public async Task<IActionResult> SaveArtifact([FromForm] Artifact newArtifact)
         {
             try {
-                Guid newId = Guid.NewGuid();
-                await _artifactRepo.AddArtifact(new Artifact () {
-                    id = newId,
+                var record = await _artifactRepo.AddArtifact(new Artifact () {
                     title = newArtifact.title,
                     description = newArtifact.description,
                     created = DateTime.Now,
@@ -54,7 +50,7 @@ namespace openstig_save_api.Controllers
                     rawChecklist = newArtifact.rawChecklist
                 });
                 // publish to the openstig save new realm the new ID we can use
-                _msgServer.Publish("openstig.save.new", Encoding.UTF8.GetBytes(newId.ToString()));
+                _msgServer.Publish("openstig.save.new", Encoding.UTF8.GetBytes(record.InternalId.ToString()));
                 return Ok();
             }
             catch (Exception ex) {
@@ -64,22 +60,19 @@ namespace openstig_save_api.Controllers
         }
 
         // PUT as new
-        [HttpPut]
-        public async Task<IActionResult> UpdateArtifact([FromForm] Artifact newArtifact)
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateArtifact(string id, [FromForm] Artifact newArtifact)
         {
             try {
-                await _artifactRepo.UpdateArtifact(newArtifact.id.ToString(), new Artifact () {
+                await _artifactRepo.UpdateArtifact(id, new Artifact () {
                     title = newArtifact.title,
                     description = newArtifact.description,
                     created = newArtifact.created,
                     type = newArtifact.type,
-                    rawChecklist = newArtifact.rawChecklist,
-                    updatedOn = DateTime.Now,
-                    id = newArtifact.id,
-                    InternalId = newArtifact.InternalId
+                    updatedOn = DateTime.Now
                 });
                 // publish to the openstig save new realm the new ID we can use
-                _msgServer.Publish("openstig.save.update", Encoding.UTF8.GetBytes(newArtifact.id.ToString()));
+                _msgServer.Publish("openstig.save.update", Encoding.UTF8.GetBytes(id));
                 return Ok();
             }
             catch (Exception ex) {
