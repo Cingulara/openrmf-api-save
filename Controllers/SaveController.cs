@@ -44,6 +44,7 @@ namespace openstig_save_api.Controllers
                 var record = await _artifactRepo.AddArtifact(new Artifact () {
                     title = newArtifact.title,
                     description = newArtifact.description,
+                    system = string.IsNullOrEmpty(newArtifact.system) ? "None" : newArtifact.system, // default to None
                     created = DateTime.Now,
                     updatedOn = DateTime.Now,
                     type = newArtifact.type,
@@ -67,6 +68,7 @@ namespace openstig_save_api.Controllers
                 await _artifactRepo.UpdateArtifact(id, new Artifact () {
                     title = newArtifact.title,
                     description = newArtifact.description,
+                    system = string.IsNullOrEmpty(newArtifact.system) ? "None" : newArtifact.system, // default to None
                     created = newArtifact.created,
                     type = newArtifact.type,
                     updatedOn = DateTime.Now
