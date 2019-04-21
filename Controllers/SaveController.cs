@@ -36,7 +36,7 @@ namespace openrmf_save_api.Controllers
             _msgServer = msgServer.Value.connection;
         }
 
-        // POST as new
+        // POST as new and then publish the new message
         [HttpPost]
         public async Task<IActionResult> SaveArtifact([FromForm] Artifact newArtifact)
         {
@@ -55,12 +55,12 @@ namespace openrmf_save_api.Controllers
                 return Ok();
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Error Saving");
+                _logger.LogError(ex, "Error Saving new Artifact");
                 return BadRequest();
             }
         }
 
-        // PUT as new
+        // PUT for updating and then publish the update message
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateArtifact(string id, [FromForm] Artifact newArtifact)
         {
@@ -78,10 +78,26 @@ namespace openrmf_save_api.Controllers
                 return Ok();
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Error Saving");
+                _logger.LogError(ex, "Error Updating {0}", id);
                 return BadRequest();
             }
         }
         
+        
+        // DELETE and then publish the delete message
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteArtifact(string id, [FromForm] Artifact newArtifact)
+        {
+            try {
+                await _artifactRepo.DeleteArtifact(id);
+                // publish to the openrmf delete realm the new ID passed in
+                _msgServer.Publish("openrmf.delete", Encoding.UTF8.GetBytes(id));
+                return Ok();
+            }
+            catch (Exception ex) {
+                _logger.LogError(ex, "Error Deleting {0}", id);
+                return BadRequest();
+            }
+        }
     }
 }
