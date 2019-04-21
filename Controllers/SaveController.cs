@@ -37,53 +37,52 @@ namespace openrmf_save_api.Controllers
         }
 
         // POST as new and then publish the new message
-        [HttpPost]
-        public async Task<IActionResult> SaveArtifact([FromForm] Artifact newArtifact)
-        {
-            try {
-                var record = await _artifactRepo.AddArtifact(new Artifact () {
-                    title = newArtifact.title,
-                    description = newArtifact.description,
-                    system = string.IsNullOrEmpty(newArtifact.system) ? "None" : newArtifact.system, // default to None
-                    created = DateTime.Now,
-                    updatedOn = DateTime.Now,
-                    type = newArtifact.type,
-                    rawChecklist = newArtifact.rawChecklist
-                });
-                // publish to the openrmf save new realm the new ID we can use
-                _msgServer.Publish("openrmf.save.new", Encoding.UTF8.GetBytes(record.InternalId.ToString()));
-                return Ok();
-            }
-            catch (Exception ex) {
-                _logger.LogError(ex, "Error Saving new Artifact");
-                return BadRequest();
-            }
-        }
+        // [HttpPost]
+        // public async Task<IActionResult> SaveArtifact([FromForm] Artifact newArtifact)
+        // {
+        //     try {
+        //         var record = await _artifactRepo.AddArtifact(new Artifact () {
+        //             title = newArtifact.title,
+        //             description = newArtifact.description,
+        //             system = string.IsNullOrEmpty(newArtifact.system) ? "None" : newArtifact.system, // default to None
+        //             created = DateTime.Now,
+        //             updatedOn = DateTime.Now,
+        //             type = newArtifact.type,
+        //             rawChecklist = newArtifact.rawChecklist
+        //         });
+        //         // publish to the openrmf save new realm the new ID we can use
+        //         _msgServer.Publish("openrmf.save.new", Encoding.UTF8.GetBytes(record.InternalId.ToString()));
+        //         return Ok();
+        //     }
+        //     catch (Exception ex) {
+        //         _logger.LogError(ex, "Error Saving new Artifact");
+        //         return BadRequest();
+        //     }
+        // }
 
         // PUT for updating and then publish the update message
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateArtifact(string id, [FromForm] Artifact newArtifact)
-        {
-            try {
-                await _artifactRepo.UpdateArtifact(id, new Artifact () {
-                    title = newArtifact.title,
-                    description = newArtifact.description,
-                    system = string.IsNullOrEmpty(newArtifact.system) ? "None" : newArtifact.system, // default to None
-                    created = newArtifact.created,
-                    type = newArtifact.type,
-                    updatedOn = DateTime.Now
-                });
-                // publish to the openrmf save new realm the new ID we can use
-                _msgServer.Publish("openrmf.save.update", Encoding.UTF8.GetBytes(id));
-                return Ok();
-            }
-            catch (Exception ex) {
-                _logger.LogError(ex, "Error Updating {0}", id);
-                return BadRequest();
-            }
-        }
-        
-        
+        // [HttpPut("{id}")]
+        // public async Task<IActionResult> UpdateArtifact(string id, [FromForm] Artifact newArtifact)
+        // {
+        //     try {
+        //         await _artifactRepo.UpdateArtifact(id, new Artifact () {
+        //             title = newArtifact.title,
+        //             description = newArtifact.description,
+        //             system = string.IsNullOrEmpty(newArtifact.system) ? "None" : newArtifact.system, // default to None
+        //             created = newArtifact.created,
+        //             type = newArtifact.type,
+        //             updatedOn = DateTime.Now
+        //         });
+        //         // publish to the openrmf save new realm the new ID we can use
+        //         _msgServer.Publish("openrmf.save.update", Encoding.UTF8.GetBytes(id));
+        //         return Ok();
+        //     }
+        //     catch (Exception ex) {
+        //         _logger.LogError(ex, "Error Updating {0}", id);
+        //         return BadRequest();
+        //     }
+        // }
+                
         // DELETE and then publish the delete message
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteArtifact(string id, [FromForm] Artifact newArtifact)
