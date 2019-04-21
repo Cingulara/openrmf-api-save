@@ -88,10 +88,14 @@ namespace openrmf_save_api.Controllers
         public async Task<IActionResult> DeleteArtifact(string id, [FromForm] Artifact newArtifact)
         {
             try {
-                await _artifactRepo.DeleteArtifact(id);
+                var deleted = await _artifactRepo.DeleteArtifact(id);
                 // publish to the openrmf delete realm the new ID passed in
-                _msgServer.Publish("openrmf.delete", Encoding.UTF8.GetBytes(id));
-                return Ok();
+                if (deleted)  {
+                    _msgServer.Publish("openrmf.delete", Encoding.UTF8.GetBytes(id));
+                    return Ok();
+                }
+                else
+                    return NotFound();
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Error Deleting {0}", id);

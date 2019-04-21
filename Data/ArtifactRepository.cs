@@ -121,7 +121,7 @@ namespace openrmf_save_api.Data {
                 // only save the data outside of the checklist, update the date
                 var currentRecord = await _context.Artifacts.Find(artifact => artifact.InternalId == art.InternalId).FirstOrDefaultAsync();
                 if (currentRecord != null){
-                    DeleteResult actionResult = await _context.Artifacts.DeleteOneAsync(Builders<Artifact>.Filter.Eq("Id", art.InternalId));
+                    DeleteResult actionResult = await _context.Artifacts.DeleteOneAsync(Builders<Artifact>.Filter.Eq("_id", art.InternalId));
                     return actionResult.IsAcknowledged && actionResult.DeletedCount > 0;
                 } 
                 else {
