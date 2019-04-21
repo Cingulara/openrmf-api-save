@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using openstig_save_api.Models;
+using openrmf_save_api.Models;
 using System.IO;
 using System.Text;
 using Microsoft.AspNetCore;
@@ -18,9 +18,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NATS.Client;
 
-using openstig_save_api.Data;
+using openrmf_save_api.Data;
 
-namespace openstig_save_api.Controllers
+namespace openrmf_save_api.Controllers
 {
     [Route("/")]
     public class SaveController : Controller
@@ -50,8 +50,8 @@ namespace openstig_save_api.Controllers
                     type = newArtifact.type,
                     rawChecklist = newArtifact.rawChecklist
                 });
-                // publish to the openstig save new realm the new ID we can use
-                _msgServer.Publish("openstig.save.new", Encoding.UTF8.GetBytes(record.InternalId.ToString()));
+                // publish to the openrmf save new realm the new ID we can use
+                _msgServer.Publish("openrmf.save.new", Encoding.UTF8.GetBytes(record.InternalId.ToString()));
                 return Ok();
             }
             catch (Exception ex) {
@@ -73,8 +73,8 @@ namespace openstig_save_api.Controllers
                     type = newArtifact.type,
                     updatedOn = DateTime.Now
                 });
-                // publish to the openstig save new realm the new ID we can use
-                _msgServer.Publish("openstig.save.update", Encoding.UTF8.GetBytes(id));
+                // publish to the openrmf save new realm the new ID we can use
+                _msgServer.Publish("openrmf.save.update", Encoding.UTF8.GetBytes(id));
                 return Ok();
             }
             catch (Exception ex) {

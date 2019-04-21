@@ -16,10 +16,10 @@ using Microsoft.EntityFrameworkCore.Metadata;
 
 using NATS.Client;
 
-using openstig_save_api.Models;
-using openstig_save_api.Data;
+using openrmf_save_api.Models;
+using openrmf_save_api.Data;
 
-namespace openstig_save_api
+namespace openrmf_save_api
 {
     public class Startup
     {
