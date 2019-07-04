@@ -7,7 +7,7 @@
             "type": "process",
             "args": [
                 "build",
-                "${workspaceFolder}/openstig-api-save.csproj"
+                "${workspaceFolder}/openrmf-api-save.csproj"
             ],
             "problemMatcher": "$msCompile"
         }

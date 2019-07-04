@@ -3,13 +3,13 @@
   <PropertyGroup>
     <TargetFramework>netcoreapp2.2</TargetFramework>
     <AspNetCoreHostingModel>InProcess</AspNetCoreHostingModel>
-    <RootNamespace>openstig_save_api</RootNamespace>
+    <RootNamespace>openrmf_save_api</RootNamespace>
     <PublishWithAspNetCoreTargetManifest>false</PublishWithAspNetCoreTargetManifest>
     <ProjectGuid>{b1851548-3b3e-4f71-a428-9b9889b28e3b}</ProjectGuid>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
-    <Version>0.6</Version>
-    <InformationalVersion>This is a beta of the openSTIG Tool Save API from Cingulara</InformationalVersion>
+    <Version>0.7</Version>
+    <InformationalVersion>This is a beta of the openRMF Tool Save API from Cingulara</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>

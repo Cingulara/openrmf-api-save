@@ -1,6 +1,6 @@
 using NATS.Client;
 
-namespace openstig_save_api.Models
+namespace openrmf_save_api.Models
 {
     public class NATSServer
     {
