@@ -1,30 +1,32 @@
-# openstig-api-save
-This is the openSTIG Save API for saving a checklist and its metadata. It has two calls.
+# openrmf-api-save
+This is the openRMF Save API for saving a checklist and its metadata. It has two calls.
 
 POST to / to save a new document
 PUT to /{id} to update a document
+DELETE to /{id} to remove a document
 
 /swagger/ gives you the API structure.
 
 ## Making your local Docker image
-docker build --rm -t openstig-api-save:0.1 .
+* make build
+* make latest
 
 ## creating the user
 * ~/mongodb/bin/mongo 'mongodb://root:myp2ssw0rd@localhost'
 * use admin
-* db.createUser({ user: "openstig" , pwd: "openstig1234!", roles: ["readWriteAnyDatabase"]});
-* use openstig
+* db.createUser({ user: "openrmf" , pwd: "openrmf1234!", roles: ["readWriteAnyDatabase"]});
+* use openrmf
 * db.createCollection("Artifacts");
 
 ## connecting to the database collection straight
-~/mongodb/bin/mongo 'mongodb://openstig:openstig1234!@localhost/openstig?authSource=admin'
+~/mongodb/bin/mongo 'mongodb://openrmf:openrmf1234!@localhost/openrmf?authSource=admin'
 
 ## Messaging Platform
 Using NATS from Synadia to have a messaging backbone and eventual consistency. Currently publishing to these known items:
-* openstig.save.new with payload (new Guid Id)
-* openstig.save.update with payload (new Guid Id)
-* openstig.upload.new with payload (new Guid Id)
-* openstig.upload.update with payload (new Guid Id)
+* openrmf.save.new with payload (new Guid Id)
+* openrmf.save.update with payload (new Guid Id)
+* openrmf.upload.new with payload (new Guid Id)
+* openrmf.upload.update with payload (new Guid Id)
 
 More will follow as this expands for auditing, logging, etc.
 

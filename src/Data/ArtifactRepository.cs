@@ -1,4 +1,4 @@
-using openstig_save_api.Models;
+using openrmf_save_api.Models;
 using System.Collections.Generic;
 using System;
 using System.Threading.Tasks;
@@ -6,7 +6,7 @@ using MongoDB.Driver;
 using MongoDB.Bson;
 using Microsoft.Extensions.Options;
 
-namespace openstig_save_api.Data {
+namespace openrmf_save_api.Data {
     public class ArtifactRepository : IArtifactRepository
     {
         private readonly ArtifactContext _context = null;
@@ -99,6 +99,30 @@ namespace openstig_save_api.Data {
                     body.rawChecklist = currentRecord.rawChecklist;
                     var actionResult = await _context.Artifacts.ReplaceOneAsync(filter, body);
                     return actionResult.IsAcknowledged && actionResult.ModifiedCount > 0;
+                } 
+                else {
+                    throw new KeyNotFoundException();
+                }
+            }
+            catch (Exception ex)
+            {
+                // log or manage the exception
+                throw ex;
+            }
+        }
+
+        public async Task<bool> DeleteArtifact(string id)
+        {
+            var filter = Builders<Artifact>.Filter.Eq(s => s.InternalId, GetInternalId(id));
+            try
+            {
+                Artifact art = new Artifact();
+                art.InternalId = GetInternalId(id);
+                // only save the data outside of the checklist, update the date
+                var currentRecord = await _context.Artifacts.Find(artifact => artifact.InternalId == art.InternalId).FirstOrDefaultAsync();
+                if (currentRecord != null){
+                    DeleteResult actionResult = await _context.Artifacts.DeleteOneAsync(Builders<Artifact>.Filter.Eq("_id", art.InternalId));
+                    return actionResult.IsAcknowledged && actionResult.DeletedCount > 0;
                 } 
                 else {
                     throw new KeyNotFoundException();

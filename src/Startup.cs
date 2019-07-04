@@ -16,10 +16,10 @@ using Microsoft.EntityFrameworkCore.Metadata;
 
 using NATS.Client;
 
-using openstig_save_api.Models;
-using openstig_save_api.Data;
+using openrmf_save_api.Models;
+using openrmf_save_api.Data;
 
-namespace openstig_save_api
+namespace openrmf_save_api
 {
     public class Startup
     {
@@ -54,13 +54,13 @@ namespace openstig_save_api
             // Register the Swagger generator, defining one or more Swagger documents
             services.AddSwaggerGen(c =>
             {
-                c.SwaggerDoc("v1", new Info { Title = "openSTIG Save API", Version = "v1", 
-                    Description = "The Save API that goes with the openSTIG tool",
+                c.SwaggerDoc("v1", new Info { Title = "openRMF Save API", Version = "v1", 
+                    Description = "The Save API that goes with the openRMF tool",
                     Contact = new Contact
                     {
                         Name = "Dale Bingham",
                         Email = "dale.bingham@cingulara.com",
-                        Url = "https://github.com/Cingulara/openstig-api-save"
+                        Url = "https://github.com/Cingulara/openrmf-api-save"
                     } });
             });
 
@@ -101,7 +101,7 @@ namespace openstig_save_api
             // Enable middleware to serve swagger-ui (HTML, JS, CSS, etc.), specifying the Swagger JSON endpoint.
             app.UseSwaggerUI(c =>
             {
-                c.SwaggerEndpoint("/swagger/v1/swagger.json", "openSTIG Save API V1");
+                c.SwaggerEndpoint("/swagger/v1/swagger.json", "openRMF Save API V1");
             });
 
             // ********************
