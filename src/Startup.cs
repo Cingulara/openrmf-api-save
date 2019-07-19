@@ -137,7 +137,7 @@ namespace openrmf_save_api
             // Enable middleware to serve swagger-ui (HTML, JS, CSS, etc.), specifying the Swagger JSON endpoint.
             app.UseSwaggerUI(c =>
             {
-                c.SwaggerEndpoint("/swagger/v1/swagger.json", "openRMF Save API V1");
+                c.SwaggerEndpoint("/swagger/v1/swagger.json", "OpenRMF Save API V1");
             });
 
             // ********************
