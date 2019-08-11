@@ -35,7 +35,7 @@ namespace openrmf_save_api.Controllers
                 var deleted = await _artifactRepo.DeleteArtifact(id);
                 // publish to the openrmf delete realm the new ID passed in
                 if (deleted)  {
-                    _msgServer.Publish("openrmf.delete", Encoding.UTF8.GetBytes(id));
+                    _msgServer.Publish("openrmf.checklist.delete", Encoding.UTF8.GetBytes(id));
                     return Ok();
                 }
                 else
