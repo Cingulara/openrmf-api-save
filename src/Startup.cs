@@ -31,13 +31,13 @@ namespace openrmf_save_api
             // Register the database components
             services.Configure<Settings>(options =>
             {
-                options.ConnectionString = Environment.GetEnvironmentVariable("mongoConnection");
-                options.Database = Environment.GetEnvironmentVariable("mongodb");
+                options.ConnectionString = Environment.GetEnvironmentVariable("MONGODBCONNECTION");
+                options.Database = Environment.GetEnvironmentVariable("MONGODB");
             });
             
             // Create a new connection factory to create a connection.
             ConnectionFactory cf = new ConnectionFactory();
-            IConnection conn = cf.CreateConnection(Environment.GetEnvironmentVariable("natsserverurl"));
+            IConnection conn = cf.CreateConnection(Environment.GetEnvironmentVariable("NATSSERVERURL"));
             // setup the NATS server
             services.Configure<NATSServer>(options =>
             {
