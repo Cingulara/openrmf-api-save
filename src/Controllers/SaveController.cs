@@ -36,6 +36,7 @@ namespace openrmf_save_api.Controllers
                 // publish to the openrmf delete realm the new ID passed in
                 if (deleted)  {
                     _msgServer.Publish("openrmf.checklist.delete", Encoding.UTF8.GetBytes(id));
+                    _msgServer.Flush();
                     return Ok();
                 }
                 else
