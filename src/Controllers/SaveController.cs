@@ -59,62 +59,61 @@ namespace openrmf_save_api.Controllers
         public async Task<IActionResult> UpdateChecklist(string systemGroupId, string title, string description, IFormFile nessusFile)
         {
           try {
-              var name = nessusFile.FileName;
-              string rawNessusFile =  string.Empty;
-              var claim = this.User.Claims.Where(x => x.Type == System.Security.Claims.ClaimTypes.NameIdentifier).FirstOrDefault();
+                string rawNessusFile =  string.Empty;
+                var claim = this.User.Claims.Where(x => x.Type == System.Security.Claims.ClaimTypes.NameIdentifier).FirstOrDefault();
 
-            // get the file for Nessus if there is one
-            if (nessusFile != null) {
-                if (nessusFile.FileName.ToLower().EndsWith(".nessus")) {
-                    using (var reader = new StreamReader(nessusFile.OpenReadStream()))
-                    {
-                        rawNessusFile = reader.ReadToEnd();  
+                // get the file for Nessus if there is one
+                if (nessusFile != null) {
+                    if (nessusFile.FileName.ToLower().EndsWith(".nessus")) {
+                        using (var reader = new StreamReader(nessusFile.OpenReadStream()))
+                        {
+                            rawNessusFile = reader.ReadToEnd();  
+                        }
+                        rawNessusFile = SanitizeData(rawNessusFile);
                     }
-                    rawNessusFile = SanitizeData(rawNessusFile);
+                    else {
+                        // log this is a bad checklistFile
+                        return BadRequest();
+                    }
                 }
-                else {
-                    // log this is a bad checklistFile
-                    return BadRequest();
-                }
-            }
 
-            // see if this is a valid system
-            // update and fill in the same info
-            SystemGroup sg = _systemGroupRepo.GetSystemGroup(systemGroupId).GetAwaiter().GetResult();
-            if (sg == null) {
-                // not a valid system group ID passed in
-                return BadRequest(); 
+                // see if this is a valid system
+                // update and fill in the same info
+                SystemGroup sg = _systemGroupRepo.GetSystemGroup(systemGroupId).GetAwaiter().GetResult();
+                if (sg == null) {
+                    // not a valid system group ID passed in
+                    return BadRequest(); 
+                }
+                // if it is update the information
+                if (!string.IsNullOrEmpty(description)) {
+                    sg.description = description;
+                }
+                if (!string.IsNullOrEmpty(rawNessusFile)) {
+                    // save the XML to use later on
+                    sg.rawNessusFile = rawNessusFile;
+                }
+                if (!string.IsNullOrEmpty(title)) {
+                    if (sg.title.Trim() != title.Trim()) {
+                        // change in the title so update it
+                        sg.title = title;
+                        // if the title is different, it should change across all other checklist files
+                        // publish to the openrmf update system realm the new title we can use it
+                        _msgServer.Publish("openrmf.system.save.update." + systemGroupId.Trim(), Encoding.UTF8.GetBytes(title));
+                        _msgServer.Flush();                }
+                }
+                // grab the user/system ID from the token if there which is *should* always be
+                if (claim != null) { // get the value
+                    sg.updatedBy = Guid.Parse(claim.Value);
+                }
+                // save the new record
+                await _systemGroupRepo.UpdateSystemGroup(systemGroupId, sg);
+                // we are finally done
+                return Ok();
             }
-            // if it is update the information
-            if (!string.IsNullOrEmpty(description)) {
-                sg.description = description;
+            catch (Exception ex) {
+                _logger.LogError(ex, "Error Updating the System {0}", systemGroupId);
+                return BadRequest();
             }
-            if (!string.IsNullOrEmpty(rawNessusFile)) {
-                // save the XML to use later on
-                sg.rawNessusFile = rawNessusFile;
-            }
-            if (!string.IsNullOrEmpty(title)) {
-                if (sg.title.Trim() != title.Trim()) {
-                    // change in the title so update it
-                    sg.title = title;
-                    // if the title is different, it should change across all other checklist files
-                    // publish to the openrmf update system realm the new title we can use it
-                    _msgServer.Publish("openrmf.system.save.update." + systemGroupId.Trim(), Encoding.UTF8.GetBytes(title));
-                    _msgServer.Flush();                }
-            }
-            // grab the user/system ID from the token if there which is *should* always be
-            if (claim != null) { // get the value
-                sg.updatedBy = Guid.Parse(claim.Value);
-            }
-            // save the new record
-            await _systemGroupRepo.UpdateSystemGroup(systemGroupId, sg);
-            // we are finally done
-            return Ok();
-          }
-          catch (Exception ex) {
-              _logger.LogError(ex, "Error Updating the System {0}", systemGroupId);
-              return BadRequest();
-          }
         }
 
         private string SanitizeData (string rawdata) {
