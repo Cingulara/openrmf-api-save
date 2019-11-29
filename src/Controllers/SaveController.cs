@@ -37,14 +37,21 @@ namespace openrmf_save_api.Controllers
         public async Task<IActionResult> DeleteArtifact(string id, [FromForm] Artifact newArtifact)
         {
             try {
-                var deleted = await _artifactRepo.DeleteArtifact(id);
-                // publish to the openrmf delete realm the new ID passed in
-                if (deleted)  {
-                    _msgServer.Publish("openrmf.checklist.delete", Encoding.UTF8.GetBytes(id));
-                    _msgServer.Flush();
-                    return Ok();
+                Artifact art = _artifactRepo.GetArtifact(id).Result;
+                if (art != null) {
+                    var deleted = await _artifactRepo.DeleteArtifact(id);
+                    if (deleted)  {
+                        // publish to the openrmf delete realm the new ID passed in to remove the score
+                        _msgServer.Publish("openrmf.checklist.delete", Encoding.UTF8.GetBytes(id));
+                        // decrement the system # of checklists by 1
+                        _msgServer.Publish("openrmf.system.count.delete", Encoding.UTF8.GetBytes(art.systemGroupId));
+                        _msgServer.Flush();                        
+                        return Ok();
+                    }
+                    else
+                        return NotFound();
                 }
-                else
+                else 
                     return NotFound();
             }
             catch (Exception ex) {
