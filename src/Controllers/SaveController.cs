@@ -84,6 +84,8 @@ namespace openrmf_save_api.Controllers
                     // not a valid system group ID passed in
                     return BadRequest(); 
                 }
+                sg.updatedOn = DateTime.Now;
+
                 // if it is update the information
                 if (!string.IsNullOrEmpty(description)) {
                     sg.description = description;
@@ -98,8 +100,9 @@ namespace openrmf_save_api.Controllers
                         sg.title = title;
                         // if the title is different, it should change across all other checklist files
                         // publish to the openrmf update system realm the new title we can use it
-                        _msgServer.Publish("openrmf.system.save.update." + systemGroupId.Trim(), Encoding.UTF8.GetBytes(title));
-                        _msgServer.Flush();                }
+                        _msgServer.Publish("openrmf.system.update." + systemGroupId.Trim(), Encoding.UTF8.GetBytes(title));
+                        _msgServer.Flush();                
+                    }
                 }
                 // grab the user/system ID from the token if there which is *should* always be
                 if (claim != null) { // get the value
