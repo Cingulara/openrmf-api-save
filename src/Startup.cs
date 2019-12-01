@@ -37,7 +37,39 @@ namespace openrmf_save_api
             
             // Create a new connection factory to create a connection.
             ConnectionFactory cf = new ConnectionFactory();
-            IConnection conn = cf.CreateConnection(Environment.GetEnvironmentVariable("NATSSERVERURL"));
+            // add the options for the server, reconnecting, and the handler events
+            Options opts = ConnectionFactory.GetDefaultOptions();
+            opts.MaxReconnect = -1;
+            opts.ReconnectWait = 1000;
+            opts.Url = Environment.GetEnvironmentVariable("NATSSERVERURL");
+            opts.AsyncErrorEventHandler += (sender, events) =>
+            {
+                Console.WriteLine(string.Format("NATS client error. Server: {0}. Message: {1}. Subject: {2}", events.Conn.ConnectedUrl, events.Error, events.Subscription.Subject));
+            };
+
+            opts.ServerDiscoveredEventHandler += (sender, events) =>
+            {
+                Console.WriteLine(string.Format("A new server has joined the cluster: {0}", events.Conn.DiscoveredServers));
+            };
+
+            opts.ClosedEventHandler += (sender, events) =>
+            {
+                Console.WriteLine(string.Format("Connection Closed: {0}", events.Conn.ConnectedUrl));
+            };
+
+            opts.ReconnectedEventHandler += (sender, events) =>
+            {
+                Console.WriteLine(string.Format("Connection Reconnected: {0}", events.Conn.ConnectedUrl));
+            };
+
+            opts.DisconnectedEventHandler += (sender, events) =>
+            {
+                Console.WriteLine(string.Format("Connection Disconnected: {0}", events.Conn.ConnectedUrl));
+            };
+            
+            // Creates a live connection to the NATS Server with the above options
+            IConnection conn = cf.CreateConnection(opts);
+
             // setup the NATS server
             services.Configure<NATSServer>(options =>
             {
@@ -45,6 +77,7 @@ namespace openrmf_save_api
             });
 
             services.AddTransient<IArtifactRepository, ArtifactRepository>();
+            services.AddTransient<ISystemGroupRepository, SystemGroupRepository>();
 
             // Register the Swagger generator, defining one or more Swagger documents
             services.AddSwaggerGen(c =>
