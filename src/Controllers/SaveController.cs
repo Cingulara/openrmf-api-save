@@ -109,7 +109,7 @@ namespace openrmf_save_api.Controllers
             }
         }
 
-        // PUT a system update
+        // POST add a new system 
         [HttpPost("system")]
         [Authorize(Roles = "Administrator,Editor")]
         public async Task<IActionResult> CreateChecklist(string title, string description, IFormFile nessusFile)
