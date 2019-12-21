@@ -55,6 +55,20 @@ namespace openrmf_save_api.Data {
                 throw ex;
             }
         }
+
+        public async Task<SystemGroup> AddSystemGroup(SystemGroup item)
+        {
+            try
+            {
+                await _context.SystemGroups.InsertOneAsync(item);
+                return item;
+            }
+            catch (Exception ex)
+            {
+                // log or manage the exception
+                throw ex;
+            }
+        }
         
         public async Task<bool> DeleteSystemGroup(string id)
         {

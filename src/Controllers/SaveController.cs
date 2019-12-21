@@ -109,10 +109,73 @@ namespace openrmf_save_api.Controllers
             }
         }
 
-        // POST a system update
-        [HttpPost("system/{systemGroupId}")]
+        // PUT a system update
+        [HttpPost("system")]
         [Authorize(Roles = "Administrator,Editor")]
-        public async Task<IActionResult> UpdateChecklist(string systemGroupId, string title, string description, IFormFile nessusFile)
+        public async Task<IActionResult> CreateChecklist(string title, string description, IFormFile nessusFile)
+        {
+          try {
+                string rawNessusFile =  string.Empty;
+                var claim = this.User.Claims.Where(x => x.Type == System.Security.Claims.ClaimTypes.NameIdentifier).FirstOrDefault();
+
+                // create the record to use
+                SystemGroup sg = new SystemGroup();
+                sg.created = DateTime.Now;
+
+                if (!string.IsNullOrEmpty(title)) {
+                    sg.title = title;
+                }
+                else {
+                    _logger.LogInformation("No title passed so returning a 404");
+                    BadRequest("You must enter a title.");
+                }
+
+                // get the file for Nessus if there is one
+                if (nessusFile != null) {
+                    if (nessusFile.FileName.ToLower().EndsWith(".nessus")) {
+                        _logger.LogInformation("Reading the System {0} Nessus ACAS file", title);
+                        using (var reader = new StreamReader(nessusFile.OpenReadStream()))
+                        {
+                            rawNessusFile = reader.ReadToEnd();  
+                        }
+                        rawNessusFile = SanitizeData(rawNessusFile);
+                    }
+                    else {
+                        // log this is a bad Nessus ACAS scan file
+                        return BadRequest();
+                    }
+                }
+
+                // add the information
+                if (!string.IsNullOrEmpty(description)) {
+                    sg.description = description;
+                }
+                if (!string.IsNullOrEmpty(rawNessusFile)) {
+                    // save the XML to use later on
+                    sg.rawNessusFile = rawNessusFile;
+                }
+                
+                // grab the user/system ID from the token if there which is *should* always be
+                if (claim != null) { // get the value
+                    sg.createdBy = Guid.Parse(claim.Value);
+                }
+
+                // save the new record
+                _logger.LogInformation("Saving the System {0}", title);
+                await _systemGroupRepo.AddSystemGroup(sg);
+                // we are finally done
+                return Ok();
+            }
+            catch (Exception ex) {
+                _logger.LogError(ex, "Error Creating the System {0}", title);
+                return BadRequest();
+            }
+        }
+
+        // PUT a system update
+        [HttpPut("system/{systemGroupId}")]
+        [Authorize(Roles = "Administrator,Editor")]
+        public async Task<IActionResult> UpdateSystem(string systemGroupId, string title, string description, IFormFile nessusFile)
         {
           try {
                 string rawNessusFile =  string.Empty;
@@ -121,6 +184,7 @@ namespace openrmf_save_api.Controllers
                 // get the file for Nessus if there is one
                 if (nessusFile != null) {
                     if (nessusFile.FileName.ToLower().EndsWith(".nessus")) {
+                        _logger.LogInformation("Reading the the System {0} Nessus ACAS file", systemGroupId);
                         using (var reader = new StreamReader(nessusFile.OpenReadStream()))
                         {
                             rawNessusFile = reader.ReadToEnd();  
@@ -128,7 +192,7 @@ namespace openrmf_save_api.Controllers
                         rawNessusFile = SanitizeData(rawNessusFile);
                     }
                     else {
-                        // log this is a bad checklistFile
+                        // log this is a bad Nessus ACAS scan file
                         return BadRequest();
                     }
                 }
@@ -153,6 +217,7 @@ namespace openrmf_save_api.Controllers
                 if (!string.IsNullOrEmpty(title)) {
                     if (sg.title.Trim() != title.Trim()) {
                         // change in the title so update it
+                        _logger.LogInformation("Updating the System Title for {0} to {1}", systemGroupId, title);
                         sg.title = title;
                         // if the title is different, it should change across all other checklist files
                         // publish to the openrmf update system realm the new title we can use it
@@ -165,6 +230,7 @@ namespace openrmf_save_api.Controllers
                     sg.updatedBy = Guid.Parse(claim.Value);
                 }
                 // save the new record
+                _logger.LogInformation("Updating the System {0}", systemGroupId);
                 await _systemGroupRepo.UpdateSystemGroup(systemGroupId, sg);
                 // we are finally done
                 return Ok();
