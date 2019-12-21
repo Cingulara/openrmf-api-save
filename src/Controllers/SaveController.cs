@@ -39,23 +39,72 @@ namespace openrmf_save_api.Controllers
             try {
                 Artifact art = _artifactRepo.GetArtifact(id).Result;
                 if (art != null) {
+                    _logger.LogInformation("Deleting Checklist {0}", id);
                     var deleted = await _artifactRepo.DeleteArtifact(id);
                     if (deleted)  {
                         // publish to the openrmf delete realm the new ID passed in to remove the score
+                        _logger.LogInformation("Publishing the openrmf.checklist.delete message for {0}", id);
                         _msgServer.Publish("openrmf.checklist.delete", Encoding.UTF8.GetBytes(id));
                         // decrement the system # of checklists by 1
+                        _logger.LogInformation("Publishing the openrmf.system.count.delete message for {0}", id);
                         _msgServer.Publish("openrmf.system.count.delete", Encoding.UTF8.GetBytes(art.systemGroupId));
                         _msgServer.Flush();                        
                         return Ok();
                     }
-                    else
+                    else {
+                        _logger.LogWarning("Checklist id {0} not deleted correctly", id);
                         return NotFound();
+                    }
                 }
-                else 
+                else {
+                    _logger.LogWarning("Checklist id {0} not found", id);
                     return NotFound();
+                }
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Error Deleting {0}", id);
+                _logger.LogError(ex, "Error Deleting Checklist {0}", id);
+                return BadRequest();
+            }
+        }
+        
+        // DELETE and then publish the delete message
+        [HttpDelete("system/{id}")]
+        [Authorize(Roles = "Administrator,Editor")]
+        public async Task<IActionResult> DeleteSystem(string id)
+        {
+            try {
+                SystemGroup sys = _systemGroupRepo.GetSystemGroup(id).Result;
+                if (sys != null) {
+                    _logger.LogInformation("Deleting System {0} and all checklists", id);
+                    var deleted = await _systemGroupRepo.DeleteSystemGroup(id);
+                    if (deleted)  {
+                        // get all checklists for this system and delete each one at a time, then run the publish on score delete
+                        var checklists = await _artifactRepo.GetSystemArtifacts(id);
+                        foreach (Artifact a in checklists) {
+                            _logger.LogInformation("Deleting Checklist {0} from System {1}", a.InternalId.ToString(), id);
+                            var checklistDeleted = await _artifactRepo.DeleteArtifact(a.InternalId.ToString());
+                            if (checklistDeleted)  {
+                                // publish to the openrmf delete realm the new ID passed in to remove the score
+                                _logger.LogInformation("Publishing the openrmf.checklist.delete message for {0}", a.InternalId.ToString());
+                                _msgServer.Publish("openrmf.checklist.delete", Encoding.UTF8.GetBytes(a.InternalId.ToString()));
+                                _msgServer.Flush();
+                            }
+                        }
+                        _logger.LogInformation("Finished deleting cleanup for System {0}", id);
+                        return Ok();
+                    }
+                    else {
+                        _logger.LogWarning("System id {0} not deleted correctly", id);
+                        return NotFound();
+                    }
+                }
+                else {
+                    _logger.LogWarning("System id {0} not found", id);
+                    return NotFound();
+                }
+            }
+            catch (Exception ex) {
+                _logger.LogError(ex, "Error Deleting System {0}", id);
                 return BadRequest();
             }
         }

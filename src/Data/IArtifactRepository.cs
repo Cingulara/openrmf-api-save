@@ -12,6 +12,9 @@ namespace openrmf_save_api.Data {
 
         // query after multiple parameters
         Task<IEnumerable<Artifact>> GetArtifact(string bodyText, DateTime updatedFrom, long headerSizeLimit);
+        
+        // get all artifacts based on the system ID
+        Task<IEnumerable<Artifact>> GetSystemArtifacts(string system);
 
         // add new note document
         Task<Artifact> AddArtifact(Artifact item);

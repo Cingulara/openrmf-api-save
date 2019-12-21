@@ -8,7 +8,7 @@ namespace openrmf_save_api.Data {
     {
         Task<IEnumerable<SystemGroup>> GetAllSystemGroups();
         Task<SystemGroup> GetSystemGroup(string id);
-        Task<bool> RemoveSystemGroup(string id);
+        Task<bool> DeleteSystemGroup(string id);
 
         // update just a single system document
         Task<bool> UpdateSystemGroup(string id, SystemGroup body);

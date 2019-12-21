@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using MongoDB.Driver;
 using MongoDB.Bson;
 using Microsoft.Extensions.Options;
+using System.Linq;
 
 namespace openrmf_save_api.Data {
     public class ArtifactRepository : IArtifactRepository
@@ -72,7 +73,21 @@ namespace openrmf_save_api.Data {
                 throw ex;
             }
         }
-        
+
+        public async Task<IEnumerable<Artifact>> GetSystemArtifacts(string systemGroupId)
+        {
+            try
+            {
+                var query = await _context.Artifacts.FindAsync(artifact => artifact.systemGroupId == systemGroupId);
+                return query.ToList();
+            }
+            catch (Exception ex)
+            {
+                // log or manage the exception
+                throw ex;
+            }
+        }
+
         public async Task<Artifact> AddArtifact(Artifact item)
         {
             try
