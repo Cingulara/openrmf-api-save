@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
@@ -45,6 +46,7 @@ namespace openrmf_save_api.Controllers
                         // publish to the openrmf delete realm the new ID passed in to remove the score
                         _logger.LogInformation("Publishing the openrmf.checklist.delete message for {0}", id);
                         _msgServer.Publish("openrmf.checklist.delete", Encoding.UTF8.GetBytes(id));
+                        _msgServer.Flush();
                         // decrement the system # of checklists by 1
                         _logger.LogInformation("Publishing the openrmf.system.count.delete message for {0}", id);
                         _msgServer.Publish("openrmf.system.count.delete", Encoding.UTF8.GetBytes(art.systemGroupId));
@@ -113,27 +115,45 @@ namespace openrmf_save_api.Controllers
         // DELETE system checklists only, not the system, and then publish the delete message
         [HttpDelete("system/{id}/artifacts")]
         [Authorize(Roles = "Administrator,Editor")]
-        public async Task<IActionResult> DeleteSystemChecklists(string id)
+        public async Task<IActionResult> DeleteSystemChecklists(string id, [FromForm] string checklistIds)
         {
             try {
                 SystemGroup sys = _systemGroupRepo.GetSystemGroup(id).Result;
                 if (sys != null) {
+                    string[] ids;
                     _logger.LogInformation("Deleting System {0} checklists only", id);
-                    // get all checklists for this system and delete each one at a time, then run the publish on score delete
-                    var checklists = await _artifactRepo.GetSystemArtifacts(id);
-                    foreach (Artifact a in checklists) {
-                        _logger.LogInformation("Deleting Checklist {0} from System {1}", a.InternalId.ToString(), id);
-                        var checklistDeleted = await _artifactRepo.DeleteArtifact(a.InternalId.ToString());
+                    if (string.IsNullOrEmpty(checklistIds)){
+                        // get all checklists for this system and delete each one at a time, then run the publish on score delete
+                        var checklists = await _artifactRepo.GetSystemArtifacts(id);
+                        List<string> lstChecklistIds = new List<string>();
+                        foreach (Artifact a in checklists) {
+                            // add the ID as a string to the list
+                            lstChecklistIds.Add(a.InternalId.ToString());
+                        }
+                        // push the list to an array
+                        ids = lstChecklistIds.ToArray();         
+                    }
+                    else {
+                        // split on the command and get back an array to cycle through
+                        ids = checklistIds.Split(",");
+                    }
+
+                    // now cycle through all the IDs and run with it
+                    foreach (string checklist in ids) {
+                        _logger.LogInformation("Deleting Checklist {0} from System {1}", checklist, id);
+                        var checklistDeleted = await _artifactRepo.DeleteArtifact(checklist);
                         if (checklistDeleted)  {
                             // publish to the openrmf delete realm the new ID passed in to remove the score
-                            _logger.LogInformation("Publishing the openrmf.checklist.delete message for {0}", a.InternalId.ToString());
-                            _msgServer.Publish("openrmf.checklist.delete", Encoding.UTF8.GetBytes(a.InternalId.ToString()));
+                            _logger.LogInformation("Publishing the openrmf.checklist.delete message for {0}", checklist);
+                            _msgServer.Publish("openrmf.checklist.delete", Encoding.UTF8.GetBytes(checklist));
+                            _msgServer.Flush();
                             // decrement the system # of checklists by 1
                             _logger.LogInformation("Publishing the openrmf.system.count.delete message for {0}", id);
                             _msgServer.Publish("openrmf.system.count.delete", Encoding.UTF8.GetBytes(id));
                             _msgServer.Flush();
                         }
                     }
+
                     _logger.LogInformation("Finished deleting checklists for System {0}", id);
                     return Ok();
                 }
