@@ -50,6 +50,7 @@ namespace openrmf_save_api.Controllers
         public async Task<IActionResult> DeleteArtifact(string id)
         {
             try {
+                _logger.LogInformation("Calling DeleteArtifact({0})", id);
                 Artifact art = _artifactRepo.GetArtifact(id).Result;
                 if (art != null) {
                     _logger.LogInformation("Deleting Checklist {0}", id);
@@ -62,21 +63,22 @@ namespace openrmf_save_api.Controllers
                         // decrement the system # of checklists by 1
                         _logger.LogInformation("Publishing the openrmf.system.count.delete message for {0}", id);
                         _msgServer.Publish("openrmf.system.count.delete", Encoding.UTF8.GetBytes(art.systemGroupId));
-                        _msgServer.Flush();                        
+                        _msgServer.Flush();
+                        _logger.LogInformation("Called DeleteArtifact({0}) successfully", id);                    
                         return Ok();
                     }
                     else {
-                        _logger.LogWarning("Checklist id {0} not deleted correctly", id);
+                        _logger.LogWarning("DeleteArtifact() Checklist id {0} not deleted correctly", id);
                         return NotFound();
                     }
                 }
                 else {
-                    _logger.LogWarning("Checklist id {0} not found", id);
+                    _logger.LogWarning("DeleteArtifact() Checklist id {0} not found", id);
                     return NotFound();
                 }
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Error Deleting Checklist {0}", id);
+                _logger.LogError(ex, "DeleteArtifact() Error Deleting Checklist {0}", id);
                 return BadRequest();
             }
         }
@@ -98,38 +100,40 @@ namespace openrmf_save_api.Controllers
         public async Task<IActionResult> DeleteSystem(string id)
         {
             try {
+                _logger.LogInformation("Calling DeleteSystem({0})", id);
                 SystemGroup sys = _systemGroupRepo.GetSystemGroup(id).Result;
                 if (sys != null) {
-                    _logger.LogInformation("Deleting System {0} and all checklists", id);
+                    _logger.LogInformation("DeleteSystem() Deleting System {0} and all checklists", id);
                     var deleted = await _systemGroupRepo.DeleteSystemGroup(id);
                     if (deleted)  {
                         // get all checklists for this system and delete each one at a time, then run the publish on score delete
                         var checklists = await _artifactRepo.GetSystemArtifacts(id);
                         foreach (Artifact a in checklists) {
-                            _logger.LogInformation("Deleting Checklist {0} from System {1}", a.InternalId.ToString(), id);
+                            _logger.LogInformation("DeleteSystem() Deleting Checklist {0} from System {1}", a.InternalId.ToString(), id);
                             var checklistDeleted = await _artifactRepo.DeleteArtifact(a.InternalId.ToString());
                             if (checklistDeleted)  {
                                 // publish to the openrmf delete realm the new ID passed in to remove the score
-                                _logger.LogInformation("Publishing the openrmf.checklist.delete message for {0}", a.InternalId.ToString());
+                                _logger.LogInformation("DeleteSystem() Publishing the openrmf.checklist.delete message for {0}", a.InternalId.ToString());
                                 _msgServer.Publish("openrmf.checklist.delete", Encoding.UTF8.GetBytes(a.InternalId.ToString()));
                                 _msgServer.Flush();
                             }
                         }
-                        _logger.LogInformation("Finished deleting cleanup for System {0}", id);
+                        _logger.LogInformation("DeleteSystem() Finished deleting cleanup for System {0}", id);
+                        _logger.LogInformation("Called DeleteSystem({0}) successfully", id);
                         return Ok();
                     }
                     else {
-                        _logger.LogWarning("System id {0} not deleted correctly", id);
+                        _logger.LogWarning("DeleteSystem() System id {0} not deleted correctly", id);
                         return NotFound();
                     }
                 }
                 else {
-                    _logger.LogWarning("System id {0} not found", id);
+                    _logger.LogWarning("DeleteSystem() System id {0} not found", id);
                     return NotFound();
                 }
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Error Deleting System {0}", id);
+                _logger.LogError(ex, "DeleteSystem() Error Deleting System {0}", id);
                 return BadRequest();
             }
         }
@@ -151,10 +155,11 @@ namespace openrmf_save_api.Controllers
         public async Task<IActionResult> DeleteSystemChecklists(string id, [FromForm] string checklistIds)
         {
             try {
+                _logger.LogInformation("Calling DeleteSystemChecklists({0})", id);
                 SystemGroup sys = _systemGroupRepo.GetSystemGroup(id).Result;
                 if (sys != null) {
                     string[] ids;
-                    _logger.LogInformation("Deleting System {0} checklists only", id);
+                    _logger.LogInformation("DeleteSystemChecklists() Deleting System {0} checklists only", id);
                     if (string.IsNullOrEmpty(checklistIds)){
                         // get all checklists for this system and delete each one at a time, then run the publish on score delete
                         var checklists = await _artifactRepo.GetSystemArtifacts(id);
@@ -173,30 +178,31 @@ namespace openrmf_save_api.Controllers
 
                     // now cycle through all the IDs and run with it
                     foreach (string checklist in ids) {
-                        _logger.LogInformation("Deleting Checklist {0} from System {1}", checklist, id);
+                        _logger.LogInformation("DeleteSystemChecklists() Deleting Checklist {0} from System {1}", checklist, id);
                         var checklistDeleted = await _artifactRepo.DeleteArtifact(checklist);
                         if (checklistDeleted)  {
                             // publish to the openrmf delete realm the new ID passed in to remove the score
-                            _logger.LogInformation("Publishing the openrmf.checklist.delete message for {0}", checklist);
+                            _logger.LogInformation("DeleteSystemChecklists() Publishing the openrmf.checklist.delete message for {0}", checklist);
                             _msgServer.Publish("openrmf.checklist.delete", Encoding.UTF8.GetBytes(checklist));
                             _msgServer.Flush();
                             // decrement the system # of checklists by 1
-                            _logger.LogInformation("Publishing the openrmf.system.count.delete message for {0}", id);
+                            _logger.LogInformation("DeleteSystemChecklists() Publishing the openrmf.system.count.delete message for {0}", id);
                             _msgServer.Publish("openrmf.system.count.delete", Encoding.UTF8.GetBytes(id));
                             _msgServer.Flush();
                         }
                     }
 
-                    _logger.LogInformation("Finished deleting checklists for System {0}", id);
+                    _logger.LogInformation("DeleteSystemChecklists() Finished deleting checklists for System {0}", id);
+                    _logger.LogInformation("Called DeleteSystemChecklists({0}) successfully", id);
                     return Ok();
                 }
                 else {
-                    _logger.LogWarning("System id {0} not found", id);
+                    _logger.LogWarning("DeleteSystemChecklists() System id {0} not found", id);
                     return NotFound();
                 }
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Error Deleting System Checklists {0}", id);
+                _logger.LogError(ex, "DeleteSystemChecklists() Error Deleting System Checklists {0}", id);
                 return BadRequest();
             }
         }
@@ -216,9 +222,10 @@ namespace openrmf_save_api.Controllers
         /// <response code="404">If the system ID was not found</response>
         [HttpPost("system")]
         [Authorize(Roles = "Administrator,Editor")]
-        public async Task<IActionResult> CreateChecklist(string title, string description, IFormFile nessusFile)
+        public async Task<IActionResult> CreateSystemGroup(string title, string description, IFormFile nessusFile)
         {
           try {
+                _logger.LogInformation("Calling CreateSystemGroup({0})", title);
                 string rawNessusFile =  string.Empty;
                 var claim = this.User.Claims.Where(x => x.Type == System.Security.Claims.ClaimTypes.NameIdentifier).FirstOrDefault();
 
@@ -230,14 +237,14 @@ namespace openrmf_save_api.Controllers
                     sg.title = title;
                 }
                 else {
-                    _logger.LogInformation("No title passed so returning a 404");
+                    _logger.LogInformation("CreateSystemGroup() No title passed so returning a 404");
                     BadRequest("You must enter a title.");
                 }
 
                 // get the file for Nessus if there is one
                 if (nessusFile != null) {
                     if (nessusFile.FileName.ToLower().EndsWith(".nessus")) {
-                        _logger.LogInformation("Reading the System {0} Nessus ACAS file", title);
+                        _logger.LogInformation("CreateSystemGroup() Reading the System {0} Nessus ACAS file", title);
                         using (var reader = new StreamReader(nessusFile.OpenReadStream()))
                         {
                             rawNessusFile = reader.ReadToEnd();  
@@ -265,13 +272,14 @@ namespace openrmf_save_api.Controllers
                 }
 
                 // save the new record
-                _logger.LogInformation("Saving the System {0}", title);
+                _logger.LogInformation("CreateSystemGroup() Saving the System {0}", title);
                 await _systemGroupRepo.AddSystemGroup(sg);
+                _logger.LogInformation("Called CreateSystemGroup({0}) successfully", title);
                 // we are finally done
                 return Ok();
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Error Creating the System {0}", title);
+                _logger.LogError(ex, "CreateSystemGroup() Error Creating the System {0}", title);
                 return BadRequest();
             }
         }
@@ -295,13 +303,14 @@ namespace openrmf_save_api.Controllers
         public async Task<IActionResult> UpdateSystem(string systemGroupId, string title, string description, IFormFile nessusFile)
         {
           try {
+                _logger.LogInformation("Calling UpdateSystem({0})", systemGroupId);
                 string rawNessusFile =  string.Empty;
                 var claim = this.User.Claims.Where(x => x.Type == System.Security.Claims.ClaimTypes.NameIdentifier).FirstOrDefault();
 
                 // get the file for Nessus if there is one
                 if (nessusFile != null) {
                     if (nessusFile.FileName.ToLower().EndsWith(".nessus")) {
-                        _logger.LogInformation("Reading the the System {0} Nessus ACAS file", systemGroupId);
+                        _logger.LogInformation("UpdateSystem() Reading the the System {0} Nessus ACAS file", systemGroupId);
                         using (var reader = new StreamReader(nessusFile.OpenReadStream()))
                         {
                             rawNessusFile = reader.ReadToEnd();  
@@ -310,7 +319,8 @@ namespace openrmf_save_api.Controllers
                     }
                     else {
                         // log this is a bad Nessus ACAS scan file
-                        return BadRequest();
+                        _logger.LogWarning("UpdateSystem() Error with the Nessus uploaded file for System {0}", systemGroupId);
+                        return BadRequest("Invalid Nessus file");
                     }
                 }
 
@@ -319,6 +329,7 @@ namespace openrmf_save_api.Controllers
                 SystemGroup sg = _systemGroupRepo.GetSystemGroup(systemGroupId).GetAwaiter().GetResult();
                 if (sg == null) {
                     // not a valid system group ID passed in
+                    _logger.LogWarning("UpdateSystem() Error with the System {0} not a valid system Id", systemGroupId);
                     return NotFound(); 
                 }
                 sg.updatedOn = DateTime.Now;
@@ -334,7 +345,7 @@ namespace openrmf_save_api.Controllers
                 if (!string.IsNullOrEmpty(title)) {
                     if (sg.title.Trim() != title.Trim()) {
                         // change in the title so update it
-                        _logger.LogInformation("Updating the System Title for {0} to {1}", systemGroupId, title);
+                        _logger.LogInformation("UpdateSystem() Updating the System Title for {0} to {1}", systemGroupId, title);
                         sg.title = title;
                         // if the title is different, it should change across all other checklist files
                         // publish to the openrmf update system realm the new title we can use it
@@ -347,13 +358,14 @@ namespace openrmf_save_api.Controllers
                     sg.updatedBy = Guid.Parse(claim.Value);
                 }
                 // save the new record
-                _logger.LogInformation("Updating the System {0}", systemGroupId);
+                _logger.LogInformation("UpdateSystem() Saving the updated system {0}", systemGroupId);
                 await _systemGroupRepo.UpdateSystemGroup(systemGroupId, sg);
+                _logger.LogInformation("Called UpdateSystem({0}) successfully", systemGroupId);
                 // we are finally done
                 return Ok();
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Error Updating the System {0}", systemGroupId);
+                _logger.LogError(ex, "UpdateSystem() Error Updating the System {0}", systemGroupId);
                 return BadRequest();
             }
         }
