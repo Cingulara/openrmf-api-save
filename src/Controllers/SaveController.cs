@@ -33,11 +33,21 @@ namespace openrmf_save_api.Controllers
             _msgServer = msgServer.Value.connection;
             _systemGroupRepo = systemGroupRepo;
         }
-                
-        // DELETE and then publish the delete message
+
+        /// <summary>
+        /// DELETE Called from the OpenRMF UI (or external access) to delete a checklist by its ID.
+        /// Also deletes all scores for those checklists.
+        /// </summary>
+        /// <param name="id">The ID of the artifact passed in</param>
+        /// <returns>
+        /// HTTP Status showing it was deleted or that there is an error.
+        /// </returns>
+        /// <response code="200">Returns the newly created item</response>
+        /// <response code="400">If the item did not delete correctly</response>
+        /// <response code="404">If the ID was not found</response>
         [HttpDelete("artifact/{id}")]
         [Authorize(Roles = "Administrator,Editor")]
-        public async Task<IActionResult> DeleteArtifact(string id, [FromForm] Artifact newArtifact)
+        public async Task<IActionResult> DeleteArtifact(string id)
         {
             try {
                 Artifact art = _artifactRepo.GetArtifact(id).Result;
@@ -70,8 +80,19 @@ namespace openrmf_save_api.Controllers
                 return BadRequest();
             }
         }
-        
-        // DELETE and then publish the delete message
+
+
+        /// <summary>
+        /// DELETE Called from the OpenRMF UI (or external access) to delete an entire system
+        /// and all its checklists and scores by its ID.
+        /// </summary>
+        /// <param name="id">The ID of the system passed in</param>
+        /// <returns>
+        /// HTTP Status showing it was deleted or that there is an error.
+        /// </returns>
+        /// <response code="200">Returns the newly created item</response>
+        /// <response code="400">If the item did not delete correctly</response>
+        /// <response code="404">If the ID was not found</response>
         [HttpDelete("system/{id}")]
         [Authorize(Roles = "Administrator,Editor")]
         public async Task<IActionResult> DeleteSystem(string id)
@@ -113,8 +134,18 @@ namespace openrmf_save_api.Controllers
             }
         }
 
-
-        // DELETE system checklists only, not the system, and then publish the delete message
+        /// <summary>
+        /// DELETE Called from the OpenRMF UI (or external access) to delete all checklist found with 
+        /// the system ID. Also deletes all their scores.
+        /// </summary>
+        /// <param name="id">The ID of the artifact passed in</param>
+        /// <param name="checklistIds">The IDs in an array of all checklists to delete</param>
+        /// <returns>
+        /// HTTP Status showing it was deleted or that there is an error.
+        /// </returns>
+        /// <response code="200">Returns the newly created item</response>
+        /// <response code="400">If the item did not delete correctly</response>
+        /// <response code="404">If the ID was not found</response>
         [HttpDelete("system/{id}/artifacts")]
         [Authorize(Roles = "Administrator,Editor")]
         public async Task<IActionResult> DeleteSystemChecklists(string id, [FromForm] string checklistIds)
@@ -170,7 +201,19 @@ namespace openrmf_save_api.Controllers
             }
         }
 
-        // POST add a new system 
+        /// <summary>
+        /// POST Creating a system record from the UI or external that can set the title, description, 
+        /// and attach a Nessus file.
+        /// </summary>
+        /// <param name="title">The title/name of the system</param>
+        /// <param name="description">The description of the system</param>
+        /// <param name="nessusFile">A Nessus scan file, if any</param>
+        /// <returns>
+        /// HTTP Status showing it was created or that there is an error.
+        /// </returns>
+        /// <response code="200">Returns the newly created item</response>
+        /// <response code="400">If the item did not create correctly</response>
+        /// <response code="404">If the system ID was not found</response>
         [HttpPost("system")]
         [Authorize(Roles = "Administrator,Editor")]
         public async Task<IActionResult> CreateChecklist(string title, string description, IFormFile nessusFile)
@@ -233,7 +276,20 @@ namespace openrmf_save_api.Controllers
             }
         }
 
-        // PUT a system update
+        /// <summary>
+        /// PUT Updating a system record from the UI or external that can update the title, description, 
+        /// and attach a Nessus file.
+        /// </summary>
+        /// <param name="systemGroupId">The ID of the system passed in</param>
+        /// <param name="title">The title/name of the system</param>
+        /// <param name="description">The description of the system</param>
+        /// <param name="nessusFile">A Nessus scan file, if any</param>
+        /// <returns>
+        /// HTTP Status showing it was updated or that there is an error.
+        /// </returns>
+        /// <response code="200">Returns the newly created item</response>
+        /// <response code="400">If the item did not create correctly</response>
+        /// <response code="404">If the system ID was not found</response>
         [HttpPut("system/{systemGroupId}")]
         [Authorize(Roles = "Administrator,Editor")]
         public async Task<IActionResult> UpdateSystem(string systemGroupId, string title, string description, IFormFile nessusFile)
@@ -263,7 +319,7 @@ namespace openrmf_save_api.Controllers
                 SystemGroup sg = _systemGroupRepo.GetSystemGroup(systemGroupId).GetAwaiter().GetResult();
                 if (sg == null) {
                     // not a valid system group ID passed in
-                    return BadRequest(); 
+                    return NotFound(); 
                 }
                 sg.updatedOn = DateTime.Now;
 
