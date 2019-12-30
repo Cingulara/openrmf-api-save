@@ -8,7 +8,7 @@
     <ProjectGuid>{b1851548-3b3e-4f71-a428-9b9889b28e3b}</ProjectGuid>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
-    <Version>0.10.5</Version>
+    <Version>0.10.7</Version>
     <InformationalVersion>This is a beta of the OpenRMF Tool Save API from Cingulara</InformationalVersion>
   </PropertyGroup>
 
@@ -27,6 +27,8 @@
     <PackageReference Include="NLog" Version="4.5.11" />
     <PackageReference Include="NLog.Web.AspNetCore" Version="4.7.1" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="4.0.1" />
+    <PackageReference Include="prometheus-net" Version="3.4.0" />
+    <PackageReference Include="prometheus-net.AspNetCore" Version="3.4.0" />
   </ItemGroup>
 
   <ItemGroup>
