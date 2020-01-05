@@ -13,8 +13,10 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Authorization;
 using NATS.Client;
+using Newtonsoft.Json;
 
 using openrmf_save_api.Data;
+using openrmf_save_api.Classes;
 
 namespace openrmf_save_api.Controllers
 {
@@ -56,6 +58,7 @@ namespace openrmf_save_api.Controllers
                     _logger.LogInformation("Deleting Checklist {0}", id);
                     var deleted = await _artifactRepo.DeleteArtifact(id);
                     if (deleted)  {
+                        var claim = this.User.Claims.Where(x => x.Type == System.Security.Claims.ClaimTypes.NameIdentifier).FirstOrDefault();
                         // publish to the openrmf delete realm the new ID passed in to remove the score
                         _logger.LogInformation("Publishing the openrmf.checklist.delete message for {0}", id);
                         _msgServer.Publish("openrmf.checklist.delete", Encoding.UTF8.GetBytes(id));
@@ -64,7 +67,15 @@ namespace openrmf_save_api.Controllers
                         _logger.LogInformation("Publishing the openrmf.system.count.delete message for {0}", id);
                         _msgServer.Publish("openrmf.system.count.delete", Encoding.UTF8.GetBytes(art.systemGroupId));
                         _msgServer.Flush();
-                        _logger.LogInformation("Called DeleteArtifact({0}) successfully", id);                    
+                        _logger.LogInformation("Called DeleteArtifact({0}) successfully", id);                   
+         
+                        // publish an audit event
+                        _logger.LogInformation("DeleteArtifact() publish an audit message on a deleted checklist {0}.", id);
+                        Audit newAudit = GenerateAuditMessage(claim, "delete checklist");
+                        newAudit.message = string.Format("DeleteArtifact() delete a single checklist {0}.", id);
+                        newAudit.url = string.Format("DELETE /artifact/{0}",id);
+                        _msgServer.Publish("openrmf.audit.save", Encoding.UTF8.GetBytes(Compression.CompressString(JsonConvert.SerializeObject(newAudit))));
+                        _msgServer.Flush();
                         return Ok();
                     }
                     else {
@@ -103,9 +114,18 @@ namespace openrmf_save_api.Controllers
                 _logger.LogInformation("Calling DeleteSystem({0})", id);
                 SystemGroup sys = _systemGroupRepo.GetSystemGroup(id).Result;
                 if (sys != null) {
+                    var claim = this.User.Claims.Where(x => x.Type == System.Security.Claims.ClaimTypes.NameIdentifier).FirstOrDefault();
                     _logger.LogInformation("DeleteSystem() Deleting System {0} and all checklists", id);
                     var deleted = await _systemGroupRepo.DeleteSystemGroup(id);
-                    if (deleted)  {
+                    if (deleted) {
+                        // publish an audit event
+                        _logger.LogInformation("DeleteSystem() publish an audit message on a deleted system {0}.", id);
+                        Audit newAudit = GenerateAuditMessage(claim, "delete system");
+                        newAudit.message = string.Format("DeleteSystem() delete the entire system {0}.", id);
+                        newAudit.url = string.Format("DELETE /system/{0}",id);
+                        _msgServer.Publish("openrmf.audit.save", Encoding.UTF8.GetBytes(Compression.CompressString(JsonConvert.SerializeObject(newAudit))));
+                        _msgServer.Flush();
+
                         // get all checklists for this system and delete each one at a time, then run the publish on score delete
                         var checklists = await _artifactRepo.GetSystemArtifacts(id);
                         foreach (Artifact a in checklists) {
@@ -115,6 +135,16 @@ namespace openrmf_save_api.Controllers
                                 // publish to the openrmf delete realm the new ID passed in to remove the score
                                 _logger.LogInformation("DeleteSystem() Publishing the openrmf.checklist.delete message for {0}", a.InternalId.ToString());
                                 _msgServer.Publish("openrmf.checklist.delete", Encoding.UTF8.GetBytes(a.InternalId.ToString()));
+                                _msgServer.Flush();
+
+                                // publish an audit event
+                                _logger.LogInformation("DeleteSystem() publish an audit message on a deleted checklist {0} on system {1}.", a.InternalId.ToString(), id);
+                                // reset the object
+                                newAudit = new Audit();
+                                newAudit = GenerateAuditMessage(claim, "delete checklist from a system delete");
+                                newAudit.message = string.Format("DeleteSystem() delete the checklist {0} from the system {1}.", a.InternalId.ToString(), id);
+                                newAudit.url = string.Format("DELETE /system/{0}",id);
+                                _msgServer.Publish("openrmf.audit.save", Encoding.UTF8.GetBytes(Compression.CompressString(JsonConvert.SerializeObject(newAudit))));
                                 _msgServer.Flush();
                             }
                         }
@@ -177,6 +207,8 @@ namespace openrmf_save_api.Controllers
                     }
 
                     // now cycle through all the IDs and run with it
+                    var claim = this.User.Claims.Where(x => x.Type == System.Security.Claims.ClaimTypes.NameIdentifier).FirstOrDefault();
+                    Audit newAudit;
                     foreach (string checklist in ids) {
                         _logger.LogInformation("DeleteSystemChecklists() Deleting Checklist {0} from System {1}", checklist, id);
                         var checklistDeleted = await _artifactRepo.DeleteArtifact(checklist);
@@ -188,6 +220,15 @@ namespace openrmf_save_api.Controllers
                             // decrement the system # of checklists by 1
                             _logger.LogInformation("DeleteSystemChecklists() Publishing the openrmf.system.count.delete message for {0}", id);
                             _msgServer.Publish("openrmf.system.count.delete", Encoding.UTF8.GetBytes(id));
+                            _msgServer.Flush();
+
+                            // publish an audit event
+                            _logger.LogInformation("DeleteSystemChecklists() publish an audit message on a deleted checklist {0} on system {1}.", checklist, id);
+                            newAudit = new Audit();
+                            newAudit = GenerateAuditMessage(claim, "delete checklist from list of checklists selected");
+                            newAudit.message = string.Format("DeleteSystemChecklists() delete the checklist {0} from the system {1}.", checklist, id);
+                            newAudit.url = string.Format("DELETE system/{0}/artifacts",id);
+                            _msgServer.Publish("openrmf.audit.save", Encoding.UTF8.GetBytes(Compression.CompressString(JsonConvert.SerializeObject(newAudit))));
                             _msgServer.Flush();
                         }
                     }
@@ -276,6 +317,14 @@ namespace openrmf_save_api.Controllers
                 await _systemGroupRepo.AddSystemGroup(sg);
                 _logger.LogInformation("Called CreateSystemGroup({0}) successfully", title);
                 // we are finally done
+                
+                // publish an audit event
+                _logger.LogInformation("CreateSystemGroup() publish an audit message on creating a new system {0}.", sg.title);
+                Audit newAudit = GenerateAuditMessage(claim, "create system");
+                newAudit.message = string.Format("CreateSystemGroup() create a new system {0}.", sg.title);
+                newAudit.url = string.Format("POST /system");
+                _msgServer.Publish("openrmf.audit.save", Encoding.UTF8.GetBytes(Compression.CompressString(JsonConvert.SerializeObject(newAudit))));
+                _msgServer.Flush();
                 return Ok();
             }
             catch (Exception ex) {
@@ -362,6 +411,15 @@ namespace openrmf_save_api.Controllers
                 await _systemGroupRepo.UpdateSystemGroup(systemGroupId, sg);
                 _logger.LogInformation("Called UpdateSystem({0}) successfully", systemGroupId);
                 // we are finally done
+
+                // publish an audit event
+                _logger.LogInformation("UpdateSystem() publish an audit message on creating a new system {0}.", sg.title);
+                Audit newAudit = GenerateAuditMessage(claim, "create system");
+                newAudit.message = string.Format("UpdateSystem() update the system ({0}) {1}.", sg.InternalId.ToString(), sg.title);
+                newAudit.url = string.Format("PUT /system/{0}",systemGroupId);
+                _msgServer.Publish("openrmf.audit.save", Encoding.UTF8.GetBytes(Compression.CompressString(JsonConvert.SerializeObject(newAudit))));
+                _msgServer.Flush();
+
                 return Ok();
             }
             catch (Exception ex) {
@@ -372,6 +430,26 @@ namespace openrmf_save_api.Controllers
 
         private string SanitizeData (string rawdata) {
             return rawdata.Replace("\t","").Replace(">\n<","><");
+        }
+        
+        private Audit GenerateAuditMessage(System.Security.Claims.Claim claim, string action) {
+            Audit audit = new Audit();
+            audit.program = "Save API";
+            audit.created = DateTime.Now;
+            audit.action = action;
+            if (claim != null) {
+            audit.userid = claim.Value;
+            var fullname = claim.Subject.Claims.Where(x => x.Type == "name").FirstOrDefault();
+            if (fullname != null) 
+                audit.fullname = fullname.Value;
+            var username = claim.Subject.Claims.Where(x => x.Type == "preferred_username").FirstOrDefault();
+            if (username != null) 
+                audit.username = username.Value;
+            var useremail = claim.Subject.Claims.Where(x => x.Type.Contains("emailaddress")).FirstOrDefault();
+            if (useremail != null) 
+                audit.email = useremail.Value;
+            }
+            return audit;
         }
     }
 }
