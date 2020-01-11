@@ -8,11 +8,12 @@
     <ProjectGuid>{b1851548-3b3e-4f71-a428-9b9889b28e3b}</ProjectGuid>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
-    <Version>0.10.7</Version>
+    <Version>0.10.10</Version>
     <InformationalVersion>This is a beta of the OpenRMF Tool Save API from Cingulara</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="jaeger" Version="0.3.6" />
     <PackageReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.AspNetCore.Cors" Version="2.2.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="2.2.0" />
@@ -22,6 +23,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="OpenTracing.Contrib.NetCore" Version="0.6.2" />
     <PackageReference Include="mongodb.driver" Version="2.7.2" />
     <PackageReference Include="NATS.Client" Version="0.9.0" />
     <PackageReference Include="NLog" Version="4.5.11" />
