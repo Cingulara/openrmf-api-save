@@ -1,3 +1,5 @@
+// Copyright (c) Cingulara LLC 2019 and Tutela LLC 2019. All rights reserved.
+// Licensed under the GNU GENERAL PUBLIC LICENSE Version 3, 29 June 2007 license. See LICENSE file in the project root for full license information.
 using openrmf_save_api.Models;
 using System.Collections.Generic;
 using System;
@@ -12,6 +14,9 @@ namespace openrmf_save_api.Data {
 
         // query after multiple parameters
         Task<IEnumerable<Artifact>> GetArtifact(string bodyText, DateTime updatedFrom, long headerSizeLimit);
+        
+        // get all artifacts based on the system ID
+        Task<IEnumerable<Artifact>> GetSystemArtifacts(string system);
 
         // add new note document
         Task<Artifact> AddArtifact(Artifact item);
