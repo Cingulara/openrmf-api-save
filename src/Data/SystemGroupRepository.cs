@@ -1,3 +1,5 @@
+// Copyright (c) Cingulara LLC 2019 and Tutela LLC 2019. All rights reserved.
+// Licensed under the GNU GENERAL PUBLIC LICENSE Version 3, 29 June 2007 license. See LICENSE file in the project root for full license information.
 using openrmf_save_api.Models;
 using System.Collections.Generic;
 using System;
@@ -55,17 +57,37 @@ namespace openrmf_save_api.Data {
                 throw ex;
             }
         }
-        
-        public async Task<bool> RemoveSystemGroup(string id)
+
+        public async Task<SystemGroup> AddSystemGroup(SystemGroup item)
         {
             try
             {
-                DeleteResult actionResult 
-                    = await _context.SystemGroups.DeleteOneAsync(
-                        Builders<SystemGroup>.Filter.Eq("Id", id));
-
-                return actionResult.IsAcknowledged 
-                    && actionResult.DeletedCount > 0;
+                await _context.SystemGroups.InsertOneAsync(item);
+                return item;
+            }
+            catch (Exception ex)
+            {
+                // log or manage the exception
+                throw ex;
+            }
+        }
+        
+        public async Task<bool> DeleteSystemGroup(string id)
+        {
+            var filter = Builders<SystemGroup>.Filter.Eq(s => s.InternalId, GetInternalId(id));
+            try
+            {
+                SystemGroup sys = new SystemGroup();
+                sys.InternalId = GetInternalId(id);
+                // only save the data outside of the checklist, update the date
+                var currentRecord = await _context.SystemGroups.Find(s => s.InternalId == sys.InternalId).FirstOrDefaultAsync();
+                if (currentRecord != null){
+                    DeleteResult actionResult = await _context.SystemGroups.DeleteOneAsync(Builders<SystemGroup>.Filter.Eq("_id", sys.InternalId));
+                    return actionResult.IsAcknowledged && actionResult.DeletedCount > 0;
+                } 
+                else {
+                    throw new KeyNotFoundException();
+                }
             }
             catch (Exception ex)
             {

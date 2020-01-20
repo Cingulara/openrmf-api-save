@@ -1,3 +1,5 @@
+// Copyright (c) Cingulara LLC 2019 and Tutela LLC 2019. All rights reserved.
+// Licensed under the GNU GENERAL PUBLIC LICENSE Version 3, 29 June 2007 license. See LICENSE file in the project root for full license information.
 using openrmf_save_api.Models;
 using System.Collections.Generic;
 using System;
@@ -5,6 +7,7 @@ using System.Threading.Tasks;
 using MongoDB.Driver;
 using MongoDB.Bson;
 using Microsoft.Extensions.Options;
+using System.Linq;
 
 namespace openrmf_save_api.Data {
     public class ArtifactRepository : IArtifactRepository
@@ -72,7 +75,21 @@ namespace openrmf_save_api.Data {
                 throw ex;
             }
         }
-        
+
+        public async Task<IEnumerable<Artifact>> GetSystemArtifacts(string systemGroupId)
+        {
+            try
+            {
+                var query = await _context.Artifacts.FindAsync(artifact => artifact.systemGroupId == systemGroupId);
+                return query.ToList();
+            }
+            catch (Exception ex)
+            {
+                // log or manage the exception
+                throw ex;
+            }
+        }
+
         public async Task<Artifact> AddArtifact(Artifact item)
         {
             try
