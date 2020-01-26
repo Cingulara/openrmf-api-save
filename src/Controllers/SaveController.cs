@@ -314,7 +314,7 @@ namespace openrmf_save_api.Controllers
 
                 // save the new record
                 _logger.LogInformation("CreateSystemGroup() Saving the System {0}", title);
-                await _systemGroupRepo.AddSystemGroup(sg);
+                var record = await _systemGroupRepo.AddSystemGroup(sg);
                 _logger.LogInformation("Called CreateSystemGroup({0}) successfully", title);
                 // we are finally done
                 
@@ -325,7 +325,7 @@ namespace openrmf_save_api.Controllers
                 newAudit.url = string.Format("POST /system");
                 _msgServer.Publish("openrmf.audit.save", Encoding.UTF8.GetBytes(Compression.CompressString(JsonConvert.SerializeObject(newAudit))));
                 _msgServer.Flush();
-                return Ok();
+                return Ok(record);
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "CreateSystemGroup() Error Creating the System {0}", title);
