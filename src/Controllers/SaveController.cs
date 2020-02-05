@@ -291,6 +291,7 @@ namespace openrmf_save_api.Controllers
                             rawNessusFile = reader.ReadToEnd();  
                         }
                         rawNessusFile = SanitizeData(rawNessusFile);
+                        sg.nessusFilename = nessusFile.FileName; // keep a copy of the file name that was uploaded
                     }
                     else {
                         // log this is a bad Nessus ACAS scan file
@@ -353,6 +354,16 @@ namespace openrmf_save_api.Controllers
         {
           try {
                 _logger.LogInformation("Calling UpdateSystem({0})", systemGroupId);
+                // see if this is a valid system
+                // update and fill in the same info
+                SystemGroup sg = _systemGroupRepo.GetSystemGroup(systemGroupId).GetAwaiter().GetResult();
+                if (sg == null) {
+                    // not a valid system group ID passed in
+                    _logger.LogWarning("UpdateSystem() Error with the System {0} not a valid system Id", systemGroupId);
+                    return NotFound(); 
+                }
+                sg.updatedOn = DateTime.Now;
+
                 string rawNessusFile =  string.Empty;
                 var claim = this.User.Claims.Where(x => x.Type == System.Security.Claims.ClaimTypes.NameIdentifier).FirstOrDefault();
 
@@ -365,6 +376,7 @@ namespace openrmf_save_api.Controllers
                             rawNessusFile = reader.ReadToEnd();  
                         }
                         rawNessusFile = SanitizeData(rawNessusFile);
+                        sg.nessusFilename = nessusFile.FileName; // keep a copy of the file name that was uploaded
                     }
                     else {
                         // log this is a bad Nessus ACAS scan file
@@ -372,16 +384,6 @@ namespace openrmf_save_api.Controllers
                         return BadRequest("Invalid Nessus file");
                     }
                 }
-
-                // see if this is a valid system
-                // update and fill in the same info
-                SystemGroup sg = _systemGroupRepo.GetSystemGroup(systemGroupId).GetAwaiter().GetResult();
-                if (sg == null) {
-                    // not a valid system group ID passed in
-                    _logger.LogWarning("UpdateSystem() Error with the System {0} not a valid system Id", systemGroupId);
-                    return NotFound(); 
-                }
-                sg.updatedOn = DateTime.Now;
 
                 // if it is update the information
                 if (!string.IsNullOrEmpty(description)) {
