@@ -96,6 +96,114 @@ namespace openrmf_save_api.Controllers
 
 
         /// <summary>
+        /// PUT Updating a checklist record from the UI or external that can update the checklist asset information.
+        /// </summary>
+        /// <param name="artifactId">The ID of the checklist passed in</param>
+        /// <param name="systemGroupId">The ID of the system passed in</param>
+        /// <param name="hostname">The hostname of the checklist machine</param>
+        /// <param name="domainname">The full domain name of the checklist machine</param>
+        /// <param name="techarea">The technology area of the checklist machine</param>
+        /// <param name="assettype">The asset type of the checklist machine</param>
+        /// <param name="machinerole">The role of the checklist machine</param>
+        /// <param name="checklistFile">A new Checklist or SCAP scan results file, if any</param>
+        /// <returns>
+        /// HTTP Status showing it was updated or that there is an error.
+        /// </returns>
+        /// <response code="200">Returns the newly created item</response>
+        /// <response code="400">If the item did not create correctly</response>
+        /// <response code="404">If the system ID was not found</response>
+        [HttpPut("artifact/{artifactId}")]
+        [Authorize(Roles = "Administrator,Editor")]
+        public async Task<IActionResult> UpdateChecklist(string artifactId, string systemGroupId, string hostname, string domainname, 
+            string techarea, string assettype, string machinerole, IFormFile checklistFile)
+        {
+          try {
+                _logger.LogInformation("Calling UpdateChecklist(system: {0}, checklist: {1})", systemGroupId, artifactId);
+                // see if this is a valid system
+                // update and fill in the same info
+                Artifact checklist = _artifactRepo.GetArtifactBySystem(systemGroupId, artifactId).GetAwaiter().GetResult();
+                // the new raw checklist string
+                string newChecklistString = "";
+
+                if (checklist == null) {
+                    // not a valid system group Id or checklist Id passed in
+                    _logger.LogWarning("UpdateChecklist() Error with the System: {0}, Checklist: {1}} not a valid system Id or checklist Id", systemGroupId, artifactId);
+                    return NotFound(); 
+                }
+                checklist.updatedOn = DateTime.Now;
+
+                var claim = this.User.Claims.Where(x => x.Type == System.Security.Claims.ClaimTypes.NameIdentifier).FirstOrDefault();
+                // grab the user/system ID from the token if there which is *should* always be
+                if (claim != null) { // get the value
+                    checklist.updatedBy = Guid.Parse(claim.Value);
+                }
+                // get the raw checklist, put into the classes, update the asset information, then save the checklist back to a string
+                CHECKLIST chk = ChecklistLoader.LoadChecklist(checklist.rawChecklist);
+                // hostname
+                if (!string.IsNullOrEmpty(hostname)){
+                    // set the checklist asset hostname
+                    chk.ASSET.HOST_NAME = hostname;
+                    // set the artifact record metadata hostname field
+                    checklist.hostName = hostname;
+                }
+                else 
+                    chk.ASSET.HOST_NAME = "";
+                // domain name
+                if (!string.IsNullOrEmpty(domainname))
+                    chk.ASSET.HOST_FQDN = domainname;
+                else 
+                    chk.ASSET.HOST_FQDN = "";
+                // tech area
+                if (!string.IsNullOrEmpty(techarea))
+                    chk.ASSET.TECH_AREA = techarea;
+                else 
+                    chk.ASSET.TECH_AREA = "";
+                // asset type
+                if (!string.IsNullOrEmpty(assettype))
+                    chk.ASSET.ASSET_TYPE = assettype;
+                else 
+                    chk.ASSET.ASSET_TYPE = "";
+                // role
+                if (!string.IsNullOrEmpty(assettype))
+                    chk.ASSET.ASSET_TYPE = assettype;
+                else 
+                    chk.ASSET.ASSET_TYPE = "";
+
+                // serialize into a string again
+                System.Xml.Serialization.XmlSerializer xmlSerializer = new System.Xml.Serialization.XmlSerializer(chk.GetType());
+                using(StringWriter textWriter = new StringWriter())                
+                {
+                    xmlSerializer.Serialize(textWriter, chk);
+                    newChecklistString = textWriter.ToString();
+                }
+                // strip out all the extra formatting crap and clean up the XML to be as simple as possible
+                System.Xml.Linq.XDocument xDoc = System.Xml.Linq.XDocument.Parse(newChecklistString, System.Xml.Linq.LoadOptions.None);
+                // save the new serialized checklist record to the database
+                checklist.rawChecklist = xDoc.ToString(System.Xml.Linq.SaveOptions.DisableFormatting);
+                
+                // now save the new record
+                _logger.LogInformation("UpdateChecklist() Saving the updated system: {0}, checklist: {1}", systemGroupId, artifactId);
+                await _artifactRepo.UpdateArtifact(artifactId, checklist);
+                _logger.LogInformation("Called UpdateChecklist(system:{0}, checklist:{1}) successfully", systemGroupId, artifactId);
+                // we are finally done
+
+                // publish an audit event
+                _logger.LogInformation("UpdateChecklist() publish an audit message on updating a system: {0}, checklist: {1}.", systemGroupId, artifactId);
+                Audit newAudit = GenerateAuditMessage(claim, "update checklist data");
+                newAudit.message = string.Format("UpdateChecklist() update the system: {0}, checklist: {1}.", systemGroupId, artifactId);
+                newAudit.url = string.Format("PUT /artifact/{0}", artifactId);
+                _msgServer.Publish("openrmf.audit.save", Encoding.UTF8.GetBytes(Compression.CompressString(JsonConvert.SerializeObject(newAudit))));
+                _msgServer.Flush();
+
+                return Ok();
+            }
+            catch (Exception ex) {
+                _logger.LogError(ex, "UpdateChecklist() Error Updating the Checklist Data: {0}, checklist: {1}", systemGroupId, artifactId);
+                return BadRequest();
+            }
+        }
+
+        /// <summary>
         /// DELETE Called from the OpenRMF UI (or external access) to delete an entire system
         /// and all its checklists and scores by its ID.
         /// </summary>

@@ -12,6 +12,8 @@ namespace openrmf_save_api.Data {
 
         Task<Artifact> GetArtifact(string id);
 
+        Task<Artifact> GetArtifactBySystem(string systemGroupId, string artifactId);
+
         // query after multiple parameters
         Task<IEnumerable<Artifact>> GetArtifact(string bodyText, DateTime updatedFrom, long headerSizeLimit);
         
