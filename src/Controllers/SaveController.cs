@@ -94,7 +94,6 @@ namespace openrmf_save_api.Controllers
             }
         }
 
-
         /// <summary>
         /// PUT Updating a checklist record from the UI or external that can update the checklist asset information.
         /// </summary>
@@ -127,7 +126,7 @@ namespace openrmf_save_api.Controllers
 
                 if (checklist == null) {
                     // not a valid system group Id or checklist Id passed in
-                    _logger.LogWarning("UpdateChecklist() Error with the System: {0}, Checklist: {1}} not a valid system Id or checklist Id", systemGroupId, artifactId);
+                    _logger.LogWarning("UpdateChecklist() Error with the System: {0}, Checklist: {1} not a valid system Id or checklist Id", systemGroupId, artifactId);
                     return NotFound(); 
                 }
                 checklist.updatedOn = DateTime.Now;
@@ -199,6 +198,105 @@ namespace openrmf_save_api.Controllers
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "UpdateChecklist() Error Updating the Checklist Data: {0}, checklist: {1}", systemGroupId, artifactId);
+                return BadRequest();
+            }
+        }
+
+        /// <summary>
+        /// PUT Updating a checklist vulnerability record from the UI or external that can update the checklist information.
+        /// </summary>
+        /// <param name="artifactId">The ID of the checklist passed in</param>
+        /// <param name="systemGroupId">The ID of the system passed in</param>
+        /// <param name="vulnid">The vulnerability ID in the checklist</param>
+        /// <param name="status">The vulnerability status</param>
+        /// <param name="comments">The vulnerability comments entered</param>
+        /// <param name="details">The vulnerability finding details</param>
+        /// <param name="severityoverride">The severity override for the vulnerability</param>
+        /// <param name="justification">The justification for the severity override</param>
+        /// <returns>
+        /// HTTP Status showing it was updated or that there is an error.
+        /// </returns>
+        /// <response code="200">Returns the newly created item</response>
+        /// <response code="400">If the item did not create correctly</response>
+        /// <response code="404">If the system ID was not found</response>
+        [HttpPut("artifact/{artifactId}/vulnid/{vulnid}")]
+        [Authorize(Roles = "Administrator,Editor")]
+        public async Task<IActionResult> UpdateChecklistVulnerability(string artifactId, string systemGroupId, string vulnid, 
+            string status, string comments, string details, string severityoverride, string justification)
+        {
+          try {
+                _logger.LogInformation("Calling UpdateChecklistVulnerability(system: {0}, checklist: {1})", systemGroupId, artifactId);
+                // see if this is a valid system
+                // update and fill in the same info
+                Artifact checklist = _artifactRepo.GetArtifactBySystem(systemGroupId, artifactId).GetAwaiter().GetResult();
+                // the new raw checklist string
+                string newChecklistString = "";
+
+                if (checklist == null) {
+                    // not a valid system group Id or checklist Id passed in
+                    _logger.LogWarning("UpdateChecklistVulnerability() Error with the System: {0}, Checklist: {1}, Vulnerability: {2} not a valid system Id or checklist Id", 
+                        systemGroupId, artifactId, vulnid);
+                    return NotFound(); 
+                }
+                checklist.updatedOn = DateTime.Now;
+
+                var claim = this.User.Claims.Where(x => x.Type == System.Security.Claims.ClaimTypes.NameIdentifier).FirstOrDefault();
+                // grab the user/system ID from the token if there which is *should* always be
+                if (claim != null) { // get the value
+                    checklist.updatedBy = Guid.Parse(claim.Value);
+                }
+                // get the raw checklist, put into the classes, update the asset information, then save the checklist back to a string
+                CHECKLIST chk = ChecklistLoader.LoadChecklist(checklist.rawChecklist);
+                VULN vulnerability;
+                vulnerability = chk.STIGS.iSTIG.VULN.Where(y => vulnid == y.STIG_DATA.Where(z => z.VULN_ATTRIBUTE == "Vuln_Num").FirstOrDefault().ATTRIBUTE_DATA).FirstOrDefault();
+                if (vulnerability != null) {
+                    if (!string.IsNullOrEmpty(details)) vulnerability.FINDING_DETAILS = details;
+                    if (!string.IsNullOrEmpty(status)) vulnerability.STATUS = status;
+                    if (!string.IsNullOrEmpty(comments)) vulnerability.COMMENTS = comments;
+                    if (!string.IsNullOrEmpty(severityoverride)) vulnerability.SEVERITY_OVERRIDE = severityoverride;
+                    if (!string.IsNullOrEmpty(justification)) vulnerability.SEVERITY_JUSTIFICATION = justification;
+                }
+                
+                // serialize into a string again
+                System.Xml.Serialization.XmlSerializer xmlSerializer = new System.Xml.Serialization.XmlSerializer(chk.GetType());
+                using(StringWriter textWriter = new StringWriter())                
+                {
+                    xmlSerializer.Serialize(textWriter, chk);
+                    newChecklistString = textWriter.ToString();
+                }
+                // strip out all the extra formatting crap and clean up the XML to be as simple as possible
+                System.Xml.Linq.XDocument xDoc = System.Xml.Linq.XDocument.Parse(newChecklistString, System.Xml.Linq.LoadOptions.None);
+                // save the new serialized checklist record to the database
+                checklist.rawChecklist = xDoc.ToString(System.Xml.Linq.SaveOptions.DisableFormatting);
+                
+                // now save the new record
+                _logger.LogInformation("UpdateChecklistVulnerability() Saving the updated system: {0}, checklist: {1}, Vulnerability: {2}", 
+                    systemGroupId, artifactId, vulnid);
+                await _artifactRepo.UpdateArtifact(artifactId, checklist);
+                _logger.LogInformation("Called UpdateChecklistVulnerability(system:{0}, checklist:{1}, Vulnerability: {2}) successfully", 
+                    systemGroupId, artifactId, vulnid);
+                
+                // update the score with eventual consistency
+                _logger.LogInformation("UpdateChecklistVulnerability(system:{0}, checklist:{1}, Vulnerability: {2}) publishing the updated checklist for scoring", 
+                    systemGroupId, artifactId, vulnid);
+                _msgServer.Publish("openrmf.checklist.save.update", Encoding.UTF8.GetBytes(artifactId));
+                _msgServer.Flush();
+
+                // publish an audit event
+                _logger.LogInformation("UpdateChecklistVulnerability() publish an audit message on updating a system: {0}, checklist: {1}, Vulnerability: {2}.", 
+                    systemGroupId, artifactId, vulnid);
+                Audit newAudit = GenerateAuditMessage(claim, "update checklist vulnerability data");
+                newAudit.message = string.Format("UpdateChecklistVulnerability() update the system: {0}, checklist: {1}, Vulnerability: {2}.", 
+                    systemGroupId, artifactId, vulnid);
+                newAudit.url = string.Format("PUT /artifact/{0}/vulnid/{1}", artifactId, vulnid);
+                _msgServer.Publish("openrmf.audit.save", Encoding.UTF8.GetBytes(Compression.CompressString(JsonConvert.SerializeObject(newAudit))));
+                _msgServer.Flush();
+
+                return Ok();
+            }
+            catch (Exception ex) {
+                _logger.LogError(ex, "UpdateChecklistVulnerability() Error Updating the Checklist Data: {0}, checklist: {1}, Vulnerability: {2}", 
+                    systemGroupId, artifactId, vulnid);
                 return BadRequest();
             }
         }
