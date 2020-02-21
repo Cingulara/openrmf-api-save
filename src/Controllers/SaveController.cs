@@ -163,10 +163,10 @@ namespace openrmf_save_api.Controllers
                 else 
                     chk.ASSET.ASSET_TYPE = "";
                 // role
-                if (!string.IsNullOrEmpty(assettype))
-                    chk.ASSET.ASSET_TYPE = assettype;
+                if (!string.IsNullOrEmpty(machinerole))
+                    chk.ASSET.ROLE = machinerole;
                 else 
-                    chk.ASSET.ASSET_TYPE = "";
+                    chk.ASSET.ROLE = "None";
 
                 // serialize into a string again
                 System.Xml.Serialization.XmlSerializer xmlSerializer = new System.Xml.Serialization.XmlSerializer(chk.GetType());
