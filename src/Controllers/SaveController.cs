@@ -14,6 +14,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Authorization;
 using NATS.Client;
 using Newtonsoft.Json;
+using System.Xml;
 
 using openrmf_save_api.Data;
 using openrmf_save_api.Classes;
@@ -636,6 +637,142 @@ namespace openrmf_save_api.Controllers
             }
         }
 
+        /// <summary>
+        /// Update the passed in checklist with the latest version and release information
+        /// </summary>
+        /// <param name="systemGroupId">The id of the system record for this checklist</param>
+        /// <param name="artifactId">The id of the checklist</param>
+        /// <returns>
+        /// HTTP Status and the updated artifact/checklist record. Or a 404.
+        /// </returns>
+        /// <response code="200">Returns the updated artifact record</response>
+        /// <response code="404">If the search did not work correctly</response>
+        [HttpGet("upgradechecklist/system/{systemGroupId}/artifact/{artifactId}")]
+        [Authorize(Roles = "Administrator,Reader,Editor,Assessor")]
+        public async Task<IActionResult> UpgradeChecklistRelease(string systemGroupId, string artifactId)
+        {
+            try {
+                _logger.LogInformation("Calling GetLatestTemplate({0}, {1})", systemGroupId, artifactId);
+                Artifact art = _artifactRepo.GetArtifactBySystem(systemGroupId, artifactId).GetAwaiter().GetResult();
+                if (art != null) {
+                    Artifact upgradeArtifact = new Artifact();
+                    string stigType = "";
+                    SI_DATA data = art.CHECKLIST.STIGS.iSTIG.STIG_INFO.SI_DATA.Where(x => x.SID_NAME == "title").FirstOrDefault();
+                    if (data != null) {
+                        // get the artifact checklists's actual checklist type from DISA
+                        stigType = data.SID_DATA;
+                        string rawChecklistData = NATSClient.GetArtifactByTemplateTitle(stigType);
+                        if (string.IsNullOrEmpty(upgradeArtifact.rawChecklist)) {
+                            _logger.LogWarning("UpgradeChecklistRelease({0}, {1}) is not a valid ID", systemGroupId, artifactId);
+                            return NotFound();
+                        }
+                        var claim = this.User.Claims.Where(x => x.Type == System.Security.Claims.ClaimTypes.NameIdentifier).FirstOrDefault();
+
+                        // setup the STIG type, release, and version information
+                        upgradeArtifact = GetArtifactTypeReleaseVersion(rawChecklistData);
+                        // clean up the data some
+                        upgradeArtifact.rawChecklist = SanitizeData(rawChecklistData);
+                        // get the updated data to copy into this artifact record
+                        art.stigRelease = upgradeArtifact.stigRelease;
+                        art.stigType = upgradeArtifact.stigType;
+                        art.version = upgradeArtifact.version;
+
+                        // make the large CHECKLIST record for the current as-is checklist
+                        art.CHECKLIST = ChecklistLoader.LoadChecklist(art.rawChecklist);
+                        // make the empty CHECKLIST record for the new template
+                        upgradeArtifact.CHECKLIST = ChecklistLoader.LoadChecklist(upgradeArtifact.rawChecklist);
+
+                        // copy all asset from old to new, as we will generate a new rawChecklist for the existing record
+                        // from the new one we are filling up
+                        upgradeArtifact.CHECKLIST.ASSET.ROLE = art.CHECKLIST.ASSET.ROLE;
+                        upgradeArtifact.CHECKLIST.ASSET.ASSET_TYPE = art.CHECKLIST.ASSET.ASSET_TYPE;
+                        upgradeArtifact.CHECKLIST.ASSET.HOST_NAME = art.CHECKLIST.ASSET.HOST_NAME;
+                        upgradeArtifact.CHECKLIST.ASSET.HOST_IP = art.CHECKLIST.ASSET.HOST_IP;
+                        upgradeArtifact.CHECKLIST.ASSET.HOST_MAC = art.CHECKLIST.ASSET.HOST_MAC;
+                        upgradeArtifact.CHECKLIST.ASSET.HOST_FQDN = art.CHECKLIST.ASSET.HOST_FQDN;
+                        upgradeArtifact.CHECKLIST.ASSET.TECH_AREA = art.CHECKLIST.ASSET.TECH_AREA;
+                        upgradeArtifact.CHECKLIST.ASSET.TARGET_KEY = art.CHECKLIST.ASSET.TARGET_KEY;
+                        upgradeArtifact.CHECKLIST.ASSET.WEB_OR_DATABASE = art.CHECKLIST.ASSET.WEB_OR_DATABASE;
+                        upgradeArtifact.CHECKLIST.ASSET.WEB_DB_SITE = art.CHECKLIST.ASSET.WEB_DB_SITE;
+                        upgradeArtifact.CHECKLIST.ASSET.WEB_DB_INSTANCE = art.CHECKLIST.ASSET.WEB_DB_INSTANCE;
+
+                        // now copy all the VULN information/listing
+                        // 5 fields only: status, severity override, finding details, comments, severity override justification
+                        // There may be newer ones in the new one, there may be dropped ones
+                        // make sure the VulnNum matches then update
+
+                        // serialize into a string again
+                        string newChecklistString = "";
+                        System.Xml.Serialization.XmlSerializer xmlSerializer = new System.Xml.Serialization.XmlSerializer(art.GetType());
+                        using(StringWriter textWriter = new StringWriter())                
+                        {
+                            xmlSerializer.Serialize(textWriter, art);
+                            newChecklistString = textWriter.ToString();
+                        }
+                        // strip out all the extra formatting crap and clean up the XML to be as simple as possible
+                        System.Xml.Linq.XDocument xDoc = System.Xml.Linq.XDocument.Parse(newChecklistString, System.Xml.Linq.LoadOptions.None);
+                        // save the new serialized checklist record to the database
+                        art.rawChecklist = xDoc.ToString(System.Xml.Linq.SaveOptions.DisableFormatting);
+                        
+                        // save the data 
+                        _logger.LogInformation("UpgradeChecklistRelease(system:{0}, checklist:{1}) Saving the upgraded checklist", systemGroupId, artifactId);
+                        await _artifactRepo.UpdateArtifact(artifactId, art);
+                        _logger.LogInformation("Called UpgradeChecklistRelease(system:{0}, checklist:{1}) successfully", systemGroupId, artifactId);
+
+                        // we are good, send the record with updated data and update the screen
+                        return Ok(art);
+                    } else {
+                        _logger.LogWarning("Called UpgradeChecklistRelease({0}, {1}) with an invalid systemId or artifactId checklist type", systemGroupId, artifactId);
+                        return BadRequest("The checklist passed in had an Invalid System Artifact/Checklist Type");
+                    }
+                } else {
+                    _logger.LogWarning("Called UpgradeChecklistRelease({0}, {1}) with an invalid systemId or artifactId", systemGroupId, artifactId);
+                    return BadRequest("The checklist passed in had an Invalid System Artifact/Checklist");
+                }
+            }
+            catch (Exception ex) {
+                _logger.LogError(ex, "UpgradeChecklistRelease({0}, {1}) Error Retrieving Latest Template", systemGroupId, artifactId);
+                return BadRequest();
+            }
+        }
+        private Artifact GetArtifactTypeReleaseVersion(string rawChecklist) {
+            Artifact newArtifact = new Artifact();
+            newArtifact.rawChecklist = rawChecklist;
+
+            // parse the checklist and get the data needed
+            rawChecklist = rawChecklist.Replace("\n","").Replace("\t","");
+            XmlDocument xmlDoc = new XmlDocument();
+            xmlDoc.LoadXml(rawChecklist);
+
+            // get the title and release which is a list of children of child nodes buried deeper :face-palm-emoji:
+            XmlNodeList stiginfoList = xmlDoc.GetElementsByTagName("STIG_INFO");
+            foreach (XmlElement child in stiginfoList.Item(0).ChildNodes) {
+            if (child.FirstChild.InnerText == "releaseinfo")
+                newArtifact.stigRelease = child.LastChild.InnerText;
+            else if (child.FirstChild.InnerText == "title")
+                newArtifact.stigType = child.LastChild.InnerText;
+            else if (child.FirstChild.InnerText == "version")
+                newArtifact.version = child.LastChild.InnerText;
+            }
+
+            // shorten the names a bit
+            if (newArtifact != null && !string.IsNullOrEmpty(newArtifact.stigType)){
+            newArtifact.stigType = newArtifact.stigType.Replace("Security Technical Implementation Guide", "STIG");
+            newArtifact.stigType = newArtifact.stigType.Replace("Windows", "WIN");
+            newArtifact.stigType = newArtifact.stigType.Replace("Application Security and Development", "ASD");
+            newArtifact.stigType = newArtifact.stigType.Replace("Microsoft Internet Explorer", "MSIE");
+            newArtifact.stigType = newArtifact.stigType.Replace("Red Hat Enterprise Linux", "REL");
+            newArtifact.stigType = newArtifact.stigType.Replace("MS SQL Server", "MSSQL");
+            newArtifact.stigType = newArtifact.stigType.Replace("Server", "SVR");
+            newArtifact.stigType = newArtifact.stigType.Replace("Workstation", "WRK");
+            }
+            if (newArtifact != null && !string.IsNullOrEmpty(newArtifact.stigRelease)) {
+            newArtifact.stigRelease = newArtifact.stigRelease.Replace("Release: ", "R"); // i.e. R11, R2 for the release number
+            newArtifact.stigRelease = newArtifact.stigRelease.Replace("Benchmark Date:","dated");
+            }
+            return newArtifact;
+        }
+
         private string SanitizeData (string rawdata) {
             return rawdata.Replace("\t","").Replace(">\n<","><");
         }
@@ -646,16 +783,16 @@ namespace openrmf_save_api.Controllers
             audit.created = DateTime.Now;
             audit.action = action;
             if (claim != null) {
-            audit.userid = claim.Value;
-            var fullname = claim.Subject.Claims.Where(x => x.Type == "name").FirstOrDefault();
-            if (fullname != null) 
-                audit.fullname = fullname.Value;
-            var username = claim.Subject.Claims.Where(x => x.Type == "preferred_username").FirstOrDefault();
-            if (username != null) 
-                audit.username = username.Value;
-            var useremail = claim.Subject.Claims.Where(x => x.Type.Contains("emailaddress")).FirstOrDefault();
-            if (useremail != null) 
-                audit.email = useremail.Value;
+                audit.userid = claim.Value;
+                var fullname = claim.Subject.Claims.Where(x => x.Type == "name").FirstOrDefault();
+                if (fullname != null) 
+                    audit.fullname = fullname.Value;
+                var username = claim.Subject.Claims.Where(x => x.Type == "preferred_username").FirstOrDefault();
+                if (username != null) 
+                    audit.username = username.Value;
+                var useremail = claim.Subject.Claims.Where(x => x.Type.Contains("emailaddress")).FirstOrDefault();
+                if (useremail != null) 
+                    audit.email = useremail.Value;
             }
             return audit;
         }
