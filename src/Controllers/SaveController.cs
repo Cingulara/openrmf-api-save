@@ -647,7 +647,7 @@ namespace openrmf_save_api.Controllers
         /// </returns>
         /// <response code="200">Returns the updated artifact record</response>
         /// <response code="404">If the search did not work correctly</response>
-        [HttpGet("upgradechecklist/system/{systemGroupId}/artifact/{artifactId}")]
+        [HttpPost("upgradechecklist/system/{systemGroupId}/artifact/{artifactId}")]
         [Authorize(Roles = "Administrator,Reader,Editor,Assessor")]
         public async Task<IActionResult> UpgradeChecklistRelease(string systemGroupId, string artifactId)
         {
@@ -657,17 +657,23 @@ namespace openrmf_save_api.Controllers
                 if (art != null) {
                     Artifact upgradeArtifact = new Artifact();
                     string stigType = "";
+                    // make the large CHECKLIST record for the current as-is checklist
+                    art.CHECKLIST = ChecklistLoader.LoadChecklist(art.rawChecklist);
                     SI_DATA data = art.CHECKLIST.STIGS.iSTIG.STIG_INFO.SI_DATA.Where(x => x.SID_NAME == "title").FirstOrDefault();
                     if (data != null) {
                         // get the artifact checklists's actual checklist type from DISA
                         stigType = data.SID_DATA;
                         string rawChecklistData = NATSClient.GetArtifactByTemplateTitle(stigType);
-                        if (string.IsNullOrEmpty(upgradeArtifact.rawChecklist)) {
+                        if (string.IsNullOrEmpty(rawChecklistData)) {
                             _logger.LogWarning("UpgradeChecklistRelease({0}, {1}) is not a valid ID", systemGroupId, artifactId);
                             return NotFound();
                         }
                         var claim = this.User.Claims.Where(x => x.Type == System.Security.Claims.ClaimTypes.NameIdentifier).FirstOrDefault();
-
+                        // grab the user/system ID from the token if there which is *should* always be
+                        art.updatedOn = DateTime.Now;
+                        if (claim != null) { // get the value
+                            art.updatedBy = Guid.Parse(claim.Value);
+                        }
                         // setup the STIG type, release, and version information
                         upgradeArtifact = GetArtifactTypeReleaseVersion(rawChecklistData);
                         // clean up the data some
