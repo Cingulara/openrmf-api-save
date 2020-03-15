@@ -14,6 +14,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Authorization;
 using NATS.Client;
 using Newtonsoft.Json;
+using System.Xml;
 
 using openrmf_save_api.Data;
 using openrmf_save_api.Classes;
@@ -94,6 +95,212 @@ namespace openrmf_save_api.Controllers
             }
         }
 
+        /// <summary>
+        /// PUT Updating a checklist record from the UI or external that can update the checklist asset information.
+        /// </summary>
+        /// <param name="artifactId">The ID of the checklist passed in</param>
+        /// <param name="systemGroupId">The ID of the system passed in</param>
+        /// <param name="hostname">The hostname of the checklist machine</param>
+        /// <param name="domainname">The full domain name of the checklist machine</param>
+        /// <param name="techarea">The technology area of the checklist machine</param>
+        /// <param name="assettype">The asset type of the checklist machine</param>
+        /// <param name="machinerole">The role of the checklist machine</param>
+        /// <param name="checklistFile">A new Checklist or SCAP scan results file, if any</param>
+        /// <returns>
+        /// HTTP Status showing it was updated or that there is an error.
+        /// </returns>
+        /// <response code="200">Returns the newly created item</response>
+        /// <response code="400">If the item did not create correctly</response>
+        /// <response code="404">If the system ID was not found</response>
+        [HttpPut("artifact/{artifactId}")]
+        [Authorize(Roles = "Administrator,Editor")]
+        public async Task<IActionResult> UpdateChecklist(string artifactId, string systemGroupId, string hostname, string domainname, 
+            string techarea, string assettype, string machinerole, IFormFile checklistFile)
+        {
+          try {
+                _logger.LogInformation("Calling UpdateChecklist(system: {0}, checklist: {1})", systemGroupId, artifactId);
+                // see if this is a valid system
+                // update and fill in the same info
+                Artifact checklist = _artifactRepo.GetArtifactBySystem(systemGroupId, artifactId).GetAwaiter().GetResult();
+                // the new raw checklist string
+                string newChecklistString = "";
+
+                if (checklist == null) {
+                    // not a valid system group Id or checklist Id passed in
+                    _logger.LogWarning("UpdateChecklist() Error with the System: {0}, Checklist: {1} not a valid system Id or checklist Id", systemGroupId, artifactId);
+                    return NotFound(); 
+                }
+                checklist.updatedOn = DateTime.Now;
+
+                var claim = this.User.Claims.Where(x => x.Type == System.Security.Claims.ClaimTypes.NameIdentifier).FirstOrDefault();
+                // grab the user/system ID from the token if there which is *should* always be
+                if (claim != null) { // get the value
+                    checklist.updatedBy = Guid.Parse(claim.Value);
+                }
+                // get the raw checklist, put into the classes, update the asset information, then save the checklist back to a string
+                CHECKLIST chk = ChecklistLoader.LoadChecklist(checklist.rawChecklist);
+                // hostname
+                if (!string.IsNullOrEmpty(hostname)){
+                    // set the checklist asset hostname
+                    chk.ASSET.HOST_NAME = hostname;
+                    // set the artifact record metadata hostname field
+                    checklist.hostName = hostname;
+                }
+                else 
+                    chk.ASSET.HOST_NAME = "";
+                // domain name
+                if (!string.IsNullOrEmpty(domainname))
+                    chk.ASSET.HOST_FQDN = domainname;
+                else 
+                    chk.ASSET.HOST_FQDN = "";
+                // tech area
+                if (!string.IsNullOrEmpty(techarea))
+                    chk.ASSET.TECH_AREA = techarea;
+                else 
+                    chk.ASSET.TECH_AREA = "";
+                // asset type
+                if (!string.IsNullOrEmpty(assettype))
+                    chk.ASSET.ASSET_TYPE = assettype;
+                else 
+                    chk.ASSET.ASSET_TYPE = "";
+                // role
+                if (!string.IsNullOrEmpty(machinerole))
+                    chk.ASSET.ROLE = machinerole;
+                else 
+                    chk.ASSET.ROLE = "None";
+
+                // serialize into a string again
+                System.Xml.Serialization.XmlSerializer xmlSerializer = new System.Xml.Serialization.XmlSerializer(chk.GetType());
+                using(StringWriter textWriter = new StringWriter())                
+                {
+                    xmlSerializer.Serialize(textWriter, chk);
+                    newChecklistString = textWriter.ToString();
+                }
+                // strip out all the extra formatting crap and clean up the XML to be as simple as possible
+                System.Xml.Linq.XDocument xDoc = System.Xml.Linq.XDocument.Parse(newChecklistString, System.Xml.Linq.LoadOptions.None);
+                // save the new serialized checklist record to the database
+                checklist.rawChecklist = xDoc.ToString(System.Xml.Linq.SaveOptions.DisableFormatting);
+                
+                // now save the new record
+                _logger.LogInformation("UpdateChecklist() Saving the updated system: {0}, checklist: {1}", systemGroupId, artifactId);
+                await _artifactRepo.UpdateArtifact(artifactId, checklist);
+                _logger.LogInformation("Called UpdateChecklist(system:{0}, checklist:{1}) successfully", systemGroupId, artifactId);
+                // we are finally done
+
+                // publish an audit event
+                _logger.LogInformation("UpdateChecklist() publish an audit message on updating a system: {0}, checklist: {1}.", systemGroupId, artifactId);
+                Audit newAudit = GenerateAuditMessage(claim, "update checklist data");
+                newAudit.message = string.Format("UpdateChecklist() update the system: {0}, checklist: {1}.", systemGroupId, artifactId);
+                newAudit.url = string.Format("PUT /artifact/{0}", artifactId);
+                _msgServer.Publish("openrmf.audit.save", Encoding.UTF8.GetBytes(Compression.CompressString(JsonConvert.SerializeObject(newAudit))));
+                _msgServer.Flush();
+
+                return Ok();
+            }
+            catch (Exception ex) {
+                _logger.LogError(ex, "UpdateChecklist() Error Updating the Checklist Data: {0}, checklist: {1}", systemGroupId, artifactId);
+                return BadRequest();
+            }
+        }
+
+        /// <summary>
+        /// PUT Updating a checklist vulnerability record from the UI or external that can update the checklist information.
+        /// </summary>
+        /// <param name="artifactId">The ID of the checklist passed in</param>
+        /// <param name="systemGroupId">The ID of the system passed in</param>
+        /// <param name="vulnid">The vulnerability ID in the checklist</param>
+        /// <param name="status">The vulnerability status</param>
+        /// <param name="comments">The vulnerability comments entered</param>
+        /// <param name="details">The vulnerability finding details</param>
+        /// <param name="severityoverride">The severity override for the vulnerability</param>
+        /// <param name="justification">The justification for the severity override</param>
+        /// <returns>
+        /// HTTP Status showing it was updated or that there is an error.
+        /// </returns>
+        /// <response code="200">Returns the newly created item</response>
+        /// <response code="400">If the item did not create correctly</response>
+        /// <response code="404">If the system ID was not found</response>
+        [HttpPut("artifact/{artifactId}/vulnid/{vulnid}")]
+        [Authorize(Roles = "Administrator,Editor")]
+        public async Task<IActionResult> UpdateChecklistVulnerability(string artifactId, string systemGroupId, string vulnid, 
+            string status, string comments, string details, string severityoverride, string justification)
+        {
+          try {
+                _logger.LogInformation("Calling UpdateChecklistVulnerability(system: {0}, checklist: {1})", systemGroupId, artifactId);
+                // see if this is a valid system
+                // update and fill in the same info
+                Artifact checklist = _artifactRepo.GetArtifactBySystem(systemGroupId, artifactId).GetAwaiter().GetResult();
+                // the new raw checklist string
+                string newChecklistString = "";
+
+                if (checklist == null) {
+                    // not a valid system group Id or checklist Id passed in
+                    _logger.LogWarning("UpdateChecklistVulnerability() Error with the System: {0}, Checklist: {1}, Vulnerability: {2} not a valid system Id or checklist Id", 
+                        systemGroupId, artifactId, vulnid);
+                    return NotFound(); 
+                }
+                checklist.updatedOn = DateTime.Now;
+
+                var claim = this.User.Claims.Where(x => x.Type == System.Security.Claims.ClaimTypes.NameIdentifier).FirstOrDefault();
+                // grab the user/system ID from the token if there which is *should* always be
+                if (claim != null) { // get the value
+                    checklist.updatedBy = Guid.Parse(claim.Value);
+                }
+                // get the raw checklist, put into the classes, update the asset information, then save the checklist back to a string
+                CHECKLIST chk = ChecklistLoader.LoadChecklist(checklist.rawChecklist);
+                VULN vulnerability;
+                vulnerability = chk.STIGS.iSTIG.VULN.Where(y => vulnid == y.STIG_DATA.Where(z => z.VULN_ATTRIBUTE == "Vuln_Num").FirstOrDefault().ATTRIBUTE_DATA).FirstOrDefault();
+                if (vulnerability != null) {
+                    if (!string.IsNullOrEmpty(details)) vulnerability.FINDING_DETAILS = details;
+                    if (!string.IsNullOrEmpty(status)) vulnerability.STATUS = status;
+                    if (!string.IsNullOrEmpty(comments)) vulnerability.COMMENTS = comments;
+                    if (!string.IsNullOrEmpty(severityoverride)) vulnerability.SEVERITY_OVERRIDE = severityoverride;
+                    if (!string.IsNullOrEmpty(justification)) vulnerability.SEVERITY_JUSTIFICATION = justification;
+                }
+                
+                // serialize into a string again
+                System.Xml.Serialization.XmlSerializer xmlSerializer = new System.Xml.Serialization.XmlSerializer(chk.GetType());
+                using(StringWriter textWriter = new StringWriter())                
+                {
+                    xmlSerializer.Serialize(textWriter, chk);
+                    newChecklistString = textWriter.ToString();
+                }
+                // strip out all the extra formatting crap and clean up the XML to be as simple as possible
+                System.Xml.Linq.XDocument xDoc = System.Xml.Linq.XDocument.Parse(newChecklistString, System.Xml.Linq.LoadOptions.None);
+                // save the new serialized checklist record to the database
+                checklist.rawChecklist = xDoc.ToString(System.Xml.Linq.SaveOptions.DisableFormatting);
+                
+                // now save the new record
+                _logger.LogInformation("UpdateChecklistVulnerability() Saving the updated system: {0}, checklist: {1}, Vulnerability: {2}", 
+                    systemGroupId, artifactId, vulnid);
+                await _artifactRepo.UpdateArtifact(artifactId, checklist);
+                _logger.LogInformation("Called UpdateChecklistVulnerability(system:{0}, checklist:{1}, Vulnerability: {2}) successfully", 
+                    systemGroupId, artifactId, vulnid);
+                
+                // update the score with eventual consistency
+                _logger.LogInformation("UpdateChecklistVulnerability(system:{0}, checklist:{1}, Vulnerability: {2}) publishing the updated checklist for scoring", 
+                    systemGroupId, artifactId, vulnid);
+                _msgServer.Publish("openrmf.checklist.save.update", Encoding.UTF8.GetBytes(artifactId));
+                _msgServer.Flush();
+
+                // publish an audit event
+                _logger.LogInformation("UpdateChecklistVulnerability() publish an audit message on updating a system: {0}, checklist: {1}, Vulnerability: {2}.", 
+                    systemGroupId, artifactId, vulnid);
+                Audit newAudit = GenerateAuditMessage(claim, "update checklist vulnerability data");
+                newAudit.message = string.Format("UpdateChecklistVulnerability() update the system: {0}, checklist: {1}, Vulnerability: {2}.", 
+                    systemGroupId, artifactId, vulnid);
+                newAudit.url = string.Format("PUT /artifact/{0}/vulnid/{1}", artifactId, vulnid);
+                _msgServer.Publish("openrmf.audit.save", Encoding.UTF8.GetBytes(Compression.CompressString(JsonConvert.SerializeObject(newAudit))));
+                _msgServer.Flush();
+
+                return Ok();
+            }
+            catch (Exception ex) {
+                _logger.LogError(ex, "UpdateChecklistVulnerability() Error Updating the Checklist Data: {0}, checklist: {1}, Vulnerability: {2}", 
+                    systemGroupId, artifactId, vulnid);
+                return BadRequest();
+            }
+        }
 
         /// <summary>
         /// DELETE Called from the OpenRMF UI (or external access) to delete an entire system
@@ -291,6 +498,7 @@ namespace openrmf_save_api.Controllers
                             rawNessusFile = reader.ReadToEnd();  
                         }
                         rawNessusFile = SanitizeData(rawNessusFile);
+                        sg.nessusFilename = nessusFile.FileName; // keep a copy of the file name that was uploaded
                     }
                     else {
                         // log this is a bad Nessus ACAS scan file
@@ -314,7 +522,7 @@ namespace openrmf_save_api.Controllers
 
                 // save the new record
                 _logger.LogInformation("CreateSystemGroup() Saving the System {0}", title);
-                await _systemGroupRepo.AddSystemGroup(sg);
+                var record = await _systemGroupRepo.AddSystemGroup(sg);
                 _logger.LogInformation("Called CreateSystemGroup({0}) successfully", title);
                 // we are finally done
                 
@@ -325,7 +533,7 @@ namespace openrmf_save_api.Controllers
                 newAudit.url = string.Format("POST /system");
                 _msgServer.Publish("openrmf.audit.save", Encoding.UTF8.GetBytes(Compression.CompressString(JsonConvert.SerializeObject(newAudit))));
                 _msgServer.Flush();
-                return Ok();
+                return Ok(record);
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "CreateSystemGroup() Error Creating the System {0}", title);
@@ -353,6 +561,16 @@ namespace openrmf_save_api.Controllers
         {
           try {
                 _logger.LogInformation("Calling UpdateSystem({0})", systemGroupId);
+                // see if this is a valid system
+                // update and fill in the same info
+                SystemGroup sg = _systemGroupRepo.GetSystemGroup(systemGroupId).GetAwaiter().GetResult();
+                if (sg == null) {
+                    // not a valid system group ID passed in
+                    _logger.LogWarning("UpdateSystem() Error with the System {0} not a valid system Id", systemGroupId);
+                    return NotFound(); 
+                }
+                sg.updatedOn = DateTime.Now;
+
                 string rawNessusFile =  string.Empty;
                 var claim = this.User.Claims.Where(x => x.Type == System.Security.Claims.ClaimTypes.NameIdentifier).FirstOrDefault();
 
@@ -365,6 +583,7 @@ namespace openrmf_save_api.Controllers
                             rawNessusFile = reader.ReadToEnd();  
                         }
                         rawNessusFile = SanitizeData(rawNessusFile);
+                        sg.nessusFilename = nessusFile.FileName; // keep a copy of the file name that was uploaded
                     }
                     else {
                         // log this is a bad Nessus ACAS scan file
@@ -372,16 +591,6 @@ namespace openrmf_save_api.Controllers
                         return BadRequest("Invalid Nessus file");
                     }
                 }
-
-                // see if this is a valid system
-                // update and fill in the same info
-                SystemGroup sg = _systemGroupRepo.GetSystemGroup(systemGroupId).GetAwaiter().GetResult();
-                if (sg == null) {
-                    // not a valid system group ID passed in
-                    _logger.LogWarning("UpdateSystem() Error with the System {0} not a valid system Id", systemGroupId);
-                    return NotFound(); 
-                }
-                sg.updatedOn = DateTime.Now;
 
                 // if it is update the information
                 if (!string.IsNullOrEmpty(description)) {
@@ -428,6 +637,190 @@ namespace openrmf_save_api.Controllers
             }
         }
 
+        /// <summary>
+        /// Update the passed in checklist with the latest version and release information
+        /// </summary>
+        /// <param name="systemGroupId">The id of the system record for this checklist</param>
+        /// <param name="artifactId">The id of the checklist</param>
+        /// <returns>
+        /// HTTP Status and the updated artifact/checklist record. Or a 404.
+        /// </returns>
+        /// <response code="200">Returns the updated artifact record</response>
+        /// <response code="404">If the search did not work correctly</response>
+        [HttpPost("upgradechecklist/system/{systemGroupId}/artifact/{artifactId}")]
+        [Authorize(Roles = "Administrator,Reader,Editor,Assessor")]
+        public async Task<IActionResult> UpgradeChecklistRelease(string systemGroupId, string artifactId)
+        {
+            try {
+                _logger.LogInformation("Calling GetLatestTemplate({0}, {1})", systemGroupId, artifactId);
+                Artifact art = _artifactRepo.GetArtifactBySystem(systemGroupId, artifactId).GetAwaiter().GetResult();
+                if (art != null) {
+                    Artifact upgradeArtifact = new Artifact();
+                    string stigType = "";
+                    // make the large CHECKLIST record for the current as-is checklist
+                    art.CHECKLIST = ChecklistLoader.LoadChecklist(art.rawChecklist);
+                    SI_DATA data = art.CHECKLIST.STIGS.iSTIG.STIG_INFO.SI_DATA.Where(x => x.SID_NAME == "title").FirstOrDefault();
+                    if (data != null) {
+                        // get the artifact checklists's actual checklist type from DISA
+                        stigType = data.SID_DATA;
+                        string rawChecklistData = NATSClient.GetArtifactByTemplateTitle(stigType);
+                        if (string.IsNullOrEmpty(rawChecklistData)) {
+                            _logger.LogWarning("UpgradeChecklistRelease({0}, {1}) is not a valid ID", systemGroupId, artifactId);
+                            return NotFound();
+                        }
+                        var claim = this.User.Claims.Where(x => x.Type == System.Security.Claims.ClaimTypes.NameIdentifier).FirstOrDefault();
+                        // grab the user/system ID from the token if there which is *should* always be
+                        art.updatedOn = DateTime.Now;
+                        if (claim != null) { // get the value
+                            art.updatedBy = Guid.Parse(claim.Value);
+                        }
+                        // setup the STIG type, release, and version information
+                        upgradeArtifact = GetArtifactTypeReleaseVersion(rawChecklistData);
+                        // clean up the data some
+                        upgradeArtifact.rawChecklist = SanitizeData(rawChecklistData);
+                        // get the updated data to copy into this artifact record
+                        art.stigRelease = upgradeArtifact.stigRelease;
+                        art.stigType = upgradeArtifact.stigType;
+                        art.version = upgradeArtifact.version;
+
+                        // make the large CHECKLIST record for the current as-is checklist
+                        art.CHECKLIST = ChecklistLoader.LoadChecklist(art.rawChecklist);
+                        // make the empty CHECKLIST record for the new template
+                        upgradeArtifact.CHECKLIST = ChecklistLoader.LoadChecklist(upgradeArtifact.rawChecklist);
+
+                        // copy all asset from old to new, as we will generate a new rawChecklist for the existing record
+                        // from the new one we are filling up
+                        upgradeArtifact.CHECKLIST.ASSET.ROLE = art.CHECKLIST.ASSET.ROLE;
+                        upgradeArtifact.CHECKLIST.ASSET.ASSET_TYPE = art.CHECKLIST.ASSET.ASSET_TYPE;
+                        upgradeArtifact.CHECKLIST.ASSET.HOST_NAME = art.CHECKLIST.ASSET.HOST_NAME;
+                        upgradeArtifact.CHECKLIST.ASSET.HOST_IP = art.CHECKLIST.ASSET.HOST_IP;
+                        upgradeArtifact.CHECKLIST.ASSET.HOST_MAC = art.CHECKLIST.ASSET.HOST_MAC;
+                        upgradeArtifact.CHECKLIST.ASSET.HOST_FQDN = art.CHECKLIST.ASSET.HOST_FQDN;
+                        upgradeArtifact.CHECKLIST.ASSET.TECH_AREA = art.CHECKLIST.ASSET.TECH_AREA;
+                        upgradeArtifact.CHECKLIST.ASSET.TARGET_KEY = art.CHECKLIST.ASSET.TARGET_KEY;
+                        upgradeArtifact.CHECKLIST.ASSET.WEB_OR_DATABASE = art.CHECKLIST.ASSET.WEB_OR_DATABASE;
+                        upgradeArtifact.CHECKLIST.ASSET.WEB_DB_SITE = art.CHECKLIST.ASSET.WEB_DB_SITE;
+                        upgradeArtifact.CHECKLIST.ASSET.WEB_DB_INSTANCE = art.CHECKLIST.ASSET.WEB_DB_INSTANCE;
+
+                        // now copy all the VULN information/listing
+                        // 5 fields only: status, severity override, finding details, comments, severity override justification
+                        // There may be newer ones in the new one, there may be dropped ones
+                        // make sure the VulnNum matches then update
+                        VULN vulnerability;
+                        string vulnid = "";
+                        foreach (VULN v in upgradeArtifact.CHECKLIST.STIGS.iSTIG.VULN){
+                            vulnid = v.STIG_DATA.Where(z => z.VULN_ATTRIBUTE == "Vuln_Num").FirstOrDefault().ATTRIBUTE_DATA;
+                            // see if the updated checklist and current checklist have the same vulnerability
+                            if (art.CHECKLIST.STIGS.iSTIG.VULN.Where(y => y.STIG_DATA.Where(q => q.VULN_ATTRIBUTE == "Vuln_Num").FirstOrDefault().ATTRIBUTE_DATA == vulnid).FirstOrDefault() != null) {
+                                vulnerability = art.CHECKLIST.STIGS.iSTIG.VULN.Where(y => v.STIG_DATA.Where(z => z.VULN_ATTRIBUTE == "Vuln_Num").FirstOrDefault().ATTRIBUTE_DATA 
+                                        == y.STIG_DATA.Where(z => z.VULN_ATTRIBUTE == "Vuln_Num").FirstOrDefault().ATTRIBUTE_DATA).FirstOrDefault();
+                                if (vulnerability != null) {
+                                    // copy the contents from the older checklist into the newer one
+                                    if (!string.IsNullOrEmpty(vulnerability.FINDING_DETAILS)) v.FINDING_DETAILS = vulnerability.FINDING_DETAILS;
+                                    if (!string.IsNullOrEmpty(vulnerability.STATUS)) v.STATUS = vulnerability.STATUS;
+                                    if (!string.IsNullOrEmpty(vulnerability.COMMENTS)) v.COMMENTS = vulnerability.COMMENTS;
+                                    if (!string.IsNullOrEmpty(vulnerability.SEVERITY_OVERRIDE)) v.SEVERITY_OVERRIDE = vulnerability.SEVERITY_OVERRIDE;
+                                    if (!string.IsNullOrEmpty(vulnerability.SEVERITY_JUSTIFICATION)) v.SEVERITY_JUSTIFICATION = vulnerability.SEVERITY_JUSTIFICATION;
+                                }
+                            }
+                        }
+
+                        // copy the new setup into the existing record for serialization
+                        _logger.LogInformation("UpgradeChecklistRelease(system:{0}, checklist:{1}) Copying the new checklist data into the existing record", systemGroupId, artifactId);
+                        art.CHECKLIST = upgradeArtifact.CHECKLIST;
+                        upgradeArtifact = null;
+
+                        // serialize into a string again
+                        _logger.LogInformation("UpgradeChecklistRelease(system:{0}, checklist:{1}) Making the raw checklist string from the CHECKLIST record", systemGroupId, artifactId);
+                        string newChecklistString = "";
+                        System.Xml.Serialization.XmlSerializer xmlSerializer = new System.Xml.Serialization.XmlSerializer(art.CHECKLIST.GetType());
+                        using(StringWriter textWriter = new StringWriter())                
+                        {
+                            xmlSerializer.Serialize(textWriter, art.CHECKLIST);
+                            newChecklistString = textWriter.ToString();
+                        }
+                        // strip out all the extra formatting crap and clean up the XML to be as simple as possible
+                        System.Xml.Linq.XDocument xDoc = System.Xml.Linq.XDocument.Parse(newChecklistString, System.Xml.Linq.LoadOptions.None);
+                        // save the new serialized checklist record to the database
+                        art.rawChecklist = xDoc.ToString(System.Xml.Linq.SaveOptions.DisableFormatting);
+                        // clear out the data we do not need now before saving this updated record
+                        art.CHECKLIST = new CHECKLIST();
+
+                        // save the data 
+                        _logger.LogInformation("UpgradeChecklistRelease(system:{0}, checklist:{1}) Saving the upgraded checklist", systemGroupId, artifactId);
+                        await _artifactRepo.UpdateArtifact(artifactId, art);
+                        _logger.LogInformation("Called UpgradeChecklistRelease(system:{0}, checklist:{1}) successfully", systemGroupId, artifactId);
+
+                        // update the score with eventual consistency
+                        _logger.LogInformation("UpgradeChecklistRelease(system:{0}, checklist:{1}) publishing the updated checklist for scoring", 
+                            systemGroupId, artifactId);
+                        _msgServer.Publish("openrmf.checklist.save.update", Encoding.UTF8.GetBytes(artifactId));
+                        _msgServer.Flush();
+
+                        // publish an audit event
+                        _logger.LogInformation("UpgradeChecklistRelease() publish an audit message on upgrading a system: {0}, checklist: {1}.", 
+                            systemGroupId, artifactId);
+                        Audit newAudit = GenerateAuditMessage(claim, "upgraded the checklist release");
+                        newAudit.message = string.Format("UpgradeChecklistRelease() upgraded the system: {0}, checklist: {1}.", 
+                            systemGroupId, artifactId);
+                        newAudit.url = string.Format("POST upgradechecklist/system/{0}/artifact/{1}",systemGroupId, artifactId);
+                        _msgServer.Publish("openrmf.audit.save", Encoding.UTF8.GetBytes(Compression.CompressString(JsonConvert.SerializeObject(newAudit))));
+                        _msgServer.Flush();
+                        
+                        // we are good, send the record with updated data and update the screen
+                        return Ok(art);
+                    } else {
+                        _logger.LogWarning("Called UpgradeChecklistRelease({0}, {1}) with an invalid systemId or artifactId checklist type", systemGroupId, artifactId);
+                        return BadRequest("The checklist passed in had an Invalid System Artifact/Checklist Type");
+                    }
+                } else {
+                    _logger.LogWarning("Called UpgradeChecklistRelease({0}, {1}) with an invalid systemId or artifactId", systemGroupId, artifactId);
+                    return BadRequest("The checklist passed in had an Invalid System Artifact/Checklist");
+                }
+            }
+            catch (Exception ex) {
+                _logger.LogError(ex, "UpgradeChecklistRelease({0}, {1}) Error Retrieving Latest Template", systemGroupId, artifactId);
+                return BadRequest();
+            }
+        }
+        private Artifact GetArtifactTypeReleaseVersion(string rawChecklist) {
+            Artifact newArtifact = new Artifact();
+            newArtifact.rawChecklist = rawChecklist;
+
+            // parse the checklist and get the data needed
+            rawChecklist = rawChecklist.Replace("\n","").Replace("\t","");
+            XmlDocument xmlDoc = new XmlDocument();
+            xmlDoc.LoadXml(rawChecklist);
+
+            // get the title and release which is a list of children of child nodes buried deeper :face-palm-emoji:
+            XmlNodeList stiginfoList = xmlDoc.GetElementsByTagName("STIG_INFO");
+            foreach (XmlElement child in stiginfoList.Item(0).ChildNodes) {
+            if (child.FirstChild.InnerText == "releaseinfo")
+                newArtifact.stigRelease = child.LastChild.InnerText;
+            else if (child.FirstChild.InnerText == "title")
+                newArtifact.stigType = child.LastChild.InnerText;
+            else if (child.FirstChild.InnerText == "version")
+                newArtifact.version = child.LastChild.InnerText;
+            }
+
+            // shorten the names a bit
+            if (newArtifact != null && !string.IsNullOrEmpty(newArtifact.stigType)){
+            newArtifact.stigType = newArtifact.stigType.Replace("Security Technical Implementation Guide", "STIG");
+            newArtifact.stigType = newArtifact.stigType.Replace("Windows", "WIN");
+            newArtifact.stigType = newArtifact.stigType.Replace("Application Security and Development", "ASD");
+            newArtifact.stigType = newArtifact.stigType.Replace("Microsoft Internet Explorer", "MSIE");
+            newArtifact.stigType = newArtifact.stigType.Replace("Red Hat Enterprise Linux", "REL");
+            newArtifact.stigType = newArtifact.stigType.Replace("MS SQL Server", "MSSQL");
+            newArtifact.stigType = newArtifact.stigType.Replace("Server", "SVR");
+            newArtifact.stigType = newArtifact.stigType.Replace("Workstation", "WRK");
+            }
+            if (newArtifact != null && !string.IsNullOrEmpty(newArtifact.stigRelease)) {
+            newArtifact.stigRelease = newArtifact.stigRelease.Replace("Release: ", "R"); // i.e. R11, R2 for the release number
+            newArtifact.stigRelease = newArtifact.stigRelease.Replace("Benchmark Date:","dated");
+            }
+            return newArtifact;
+        }
+
         private string SanitizeData (string rawdata) {
             return rawdata.Replace("\t","").Replace(">\n<","><");
         }
@@ -438,16 +831,16 @@ namespace openrmf_save_api.Controllers
             audit.created = DateTime.Now;
             audit.action = action;
             if (claim != null) {
-            audit.userid = claim.Value;
-            var fullname = claim.Subject.Claims.Where(x => x.Type == "name").FirstOrDefault();
-            if (fullname != null) 
-                audit.fullname = fullname.Value;
-            var username = claim.Subject.Claims.Where(x => x.Type == "preferred_username").FirstOrDefault();
-            if (username != null) 
-                audit.username = username.Value;
-            var useremail = claim.Subject.Claims.Where(x => x.Type.Contains("emailaddress")).FirstOrDefault();
-            if (useremail != null) 
-                audit.email = useremail.Value;
+                audit.userid = claim.Value;
+                var fullname = claim.Subject.Claims.Where(x => x.Type == "name").FirstOrDefault();
+                if (fullname != null) 
+                    audit.fullname = fullname.Value;
+                var username = claim.Subject.Claims.Where(x => x.Type == "preferred_username").FirstOrDefault();
+                if (username != null) 
+                    audit.username = username.Value;
+                var useremail = claim.Subject.Claims.Where(x => x.Type.Contains("emailaddress")).FirstOrDefault();
+                if (useremail != null) 
+                    audit.email = useremail.Value;
             }
             return audit;
         }
