@@ -706,25 +706,67 @@ namespace openrmf_save_api.Controllers
                         // 5 fields only: status, severity override, finding details, comments, severity override justification
                         // There may be newer ones in the new one, there may be dropped ones
                         // make sure the VulnNum matches then update
+                        VULN vulnerability;
+                        string vulnid = "";
+                        foreach (VULN v in upgradeArtifact.CHECKLIST.STIGS.iSTIG.VULN){
+                            vulnid = v.STIG_DATA.Where(z => z.VULN_ATTRIBUTE == "Vuln_Num").FirstOrDefault().ATTRIBUTE_DATA;
+                            // see if the updated checklist and current checklist have the same vulnerability
+                            if (art.CHECKLIST.STIGS.iSTIG.VULN.Where(y => y.STIG_DATA.Where(q => q.VULN_ATTRIBUTE == "Vuln_Num").FirstOrDefault().ATTRIBUTE_DATA == vulnid).FirstOrDefault() != null) {
+                                vulnerability = art.CHECKLIST.STIGS.iSTIG.VULN.Where(y => v.STIG_DATA.Where(z => z.VULN_ATTRIBUTE == "Vuln_Num").FirstOrDefault().ATTRIBUTE_DATA 
+                                        == y.STIG_DATA.Where(z => z.VULN_ATTRIBUTE == "Vuln_Num").FirstOrDefault().ATTRIBUTE_DATA).FirstOrDefault();
+                                if (vulnerability != null) {
+                                    // copy the contents from the older checklist into the newer one
+                                    if (!string.IsNullOrEmpty(vulnerability.FINDING_DETAILS)) v.FINDING_DETAILS = vulnerability.FINDING_DETAILS;
+                                    if (!string.IsNullOrEmpty(vulnerability.STATUS)) v.STATUS = vulnerability.STATUS;
+                                    if (!string.IsNullOrEmpty(vulnerability.COMMENTS)) v.COMMENTS = vulnerability.COMMENTS;
+                                    if (!string.IsNullOrEmpty(vulnerability.SEVERITY_OVERRIDE)) v.SEVERITY_OVERRIDE = vulnerability.SEVERITY_OVERRIDE;
+                                    if (!string.IsNullOrEmpty(vulnerability.SEVERITY_JUSTIFICATION)) v.SEVERITY_JUSTIFICATION = vulnerability.SEVERITY_JUSTIFICATION;
+                                }
+                            }
+                        }
+
+                        // copy the new setup into the existing record for serialization
+                        _logger.LogInformation("UpgradeChecklistRelease(system:{0}, checklist:{1}) Copying the new checklist data into the existing record", systemGroupId, artifactId);
+                        art.CHECKLIST = upgradeArtifact.CHECKLIST;
+                        upgradeArtifact = null;
 
                         // serialize into a string again
+                        _logger.LogInformation("UpgradeChecklistRelease(system:{0}, checklist:{1}) Making the raw checklist string from the CHECKLIST record", systemGroupId, artifactId);
                         string newChecklistString = "";
-                        System.Xml.Serialization.XmlSerializer xmlSerializer = new System.Xml.Serialization.XmlSerializer(art.GetType());
+                        System.Xml.Serialization.XmlSerializer xmlSerializer = new System.Xml.Serialization.XmlSerializer(art.CHECKLIST.GetType());
                         using(StringWriter textWriter = new StringWriter())                
                         {
-                            xmlSerializer.Serialize(textWriter, art);
+                            xmlSerializer.Serialize(textWriter, art.CHECKLIST);
                             newChecklistString = textWriter.ToString();
                         }
                         // strip out all the extra formatting crap and clean up the XML to be as simple as possible
                         System.Xml.Linq.XDocument xDoc = System.Xml.Linq.XDocument.Parse(newChecklistString, System.Xml.Linq.LoadOptions.None);
                         // save the new serialized checklist record to the database
                         art.rawChecklist = xDoc.ToString(System.Xml.Linq.SaveOptions.DisableFormatting);
-                        
+                        // clear out the data we do not need now before saving this updated record
+                        art.CHECKLIST = new CHECKLIST();
+
                         // save the data 
                         _logger.LogInformation("UpgradeChecklistRelease(system:{0}, checklist:{1}) Saving the upgraded checklist", systemGroupId, artifactId);
                         await _artifactRepo.UpdateArtifact(artifactId, art);
                         _logger.LogInformation("Called UpgradeChecklistRelease(system:{0}, checklist:{1}) successfully", systemGroupId, artifactId);
 
+                        // update the score with eventual consistency
+                        _logger.LogInformation("UpgradeChecklistRelease(system:{0}, checklist:{1}) publishing the updated checklist for scoring", 
+                            systemGroupId, artifactId);
+                        _msgServer.Publish("openrmf.checklist.save.update", Encoding.UTF8.GetBytes(artifactId));
+                        _msgServer.Flush();
+
+                        // publish an audit event
+                        _logger.LogInformation("UpgradeChecklistRelease() publish an audit message on upgrading a system: {0}, checklist: {1}.", 
+                            systemGroupId, artifactId);
+                        Audit newAudit = GenerateAuditMessage(claim, "upgraded the checklist release");
+                        newAudit.message = string.Format("UpgradeChecklistRelease() upgraded the system: {0}, checklist: {1}.", 
+                            systemGroupId, artifactId);
+                        newAudit.url = string.Format("POST upgradechecklist/system/{0}/artifact/{1}",systemGroupId, artifactId);
+                        _msgServer.Publish("openrmf.audit.save", Encoding.UTF8.GetBytes(Compression.CompressString(JsonConvert.SerializeObject(newAudit))));
+                        _msgServer.Flush();
+                        
                         // we are good, send the record with updated data and update the screen
                         return Ok(art);
                     } else {
