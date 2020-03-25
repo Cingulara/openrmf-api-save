@@ -27,5 +27,7 @@ namespace openrmf_save_api.Data {
         Task<bool> UpdateArtifact(string id, Artifact body);
 
         Task<bool> DeleteArtifact(string id);
+
+        bool HealthStatus();
     }
 }
