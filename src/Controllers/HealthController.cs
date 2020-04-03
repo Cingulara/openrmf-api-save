@@ -13,8 +13,8 @@ namespace openrmf_save_api.Controllers
     [Route("healthz")]
     public class HealthController : Controller
     {
-       private readonly ILogger<HealthController> _logger;        
-       private readonly IArtifactRepository _artifactRepo;
+        private readonly ILogger<HealthController> _logger;        
+        private readonly IArtifactRepository _artifactRepo;
         private readonly IConnection _msgServer;
 
         public HealthController(IArtifactRepository artifactRepo, ILogger<HealthController> logger, IOptions<NATSServer> msgServer)
