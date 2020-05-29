@@ -24,5 +24,6 @@ namespace openrmf_save_api.Data
                 return _database.GetCollection<Artifact>("Artifacts");
             }
         }
+
     }
 }

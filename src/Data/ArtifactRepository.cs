@@ -41,8 +41,8 @@ namespace openrmf_save_api.Data {
 
             return internalId;
         }
+
         // query after Id or InternalId (BSonId value)
-        //
         public async Task<Artifact> GetArtifact(string id)
         {
             try
@@ -50,6 +50,22 @@ namespace openrmf_save_api.Data {
                 ObjectId internalId = GetInternalId(id);
                 return await _context.Artifacts
                                 .Find(artifact => artifact.InternalId == internalId).FirstOrDefaultAsync();
+            }
+            catch (Exception ex)
+            {
+                // log or manage the exception
+                throw ex;
+            }
+        }
+
+        // query after Id or InternalId (BSonId value) by checking artifactId and systemGroupId
+        public async Task<Artifact> GetArtifactBySystem(string systemGroupId, string artifactId)
+        {
+            try
+            {
+                ObjectId internalId = GetInternalId(artifactId);
+                return await _context.Artifacts
+                    .Find(artifact => artifact.InternalId == internalId && artifact.systemGroupId == systemGroupId).FirstOrDefaultAsync();
             }
             catch (Exception ex)
             {
@@ -113,7 +129,6 @@ namespace openrmf_save_api.Data {
                 // only save the data outside of the checklist, update the date
                 var currentRecord = await _context.Artifacts.Find(artifact => artifact.InternalId == body.InternalId).FirstOrDefaultAsync();
                 if (currentRecord != null){
-                    body.rawChecklist = currentRecord.rawChecklist;
                     var actionResult = await _context.Artifacts.ReplaceOneAsync(filter, body);
                     return actionResult.IsAcknowledged && actionResult.ModifiedCount > 0;
                 } 
@@ -150,6 +165,14 @@ namespace openrmf_save_api.Data {
                 // log or manage the exception
                 throw ex;
             }
+        }
+
+        // check that the database is responding and it returns at least one collection name
+        public bool HealthStatus(){
+            var result = _context.Artifacts.Database.ListCollectionNamesAsync().GetAwaiter().GetResult().FirstOrDefault();
+            if (!string.IsNullOrEmpty(result)) // we are good to go
+                return true;
+            return false;
         }
     }
 }
