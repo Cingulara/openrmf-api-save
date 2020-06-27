@@ -225,7 +225,7 @@ namespace openrmf_save_api.Controllers
         [HttpPut("artifact/{artifactId}/vulnid/{vulnid}")]
         [Authorize(Roles = "Administrator,Editor")]
         public async Task<IActionResult> UpdateChecklistVulnerability(string artifactId, string systemGroupId, string vulnid, 
-            string status, string comments, string details, string severityoverride, string justification)
+            string status, string comments, string details, string severityoverride, string justification, bool bulkUpdate)
         {
           try {
                 _logger.LogInformation("Calling UpdateChecklistVulnerability(system: {0}, checklist: {1})", systemGroupId, artifactId);
@@ -247,7 +247,10 @@ namespace openrmf_save_api.Controllers
                 // grab the user/system ID from the token if there which is *should* always be
                 if (claim != null) { // get the value
                     checklist.updatedBy = Guid.Parse(claim.Value);
+                } else {
+                    checklist.updatedBy = Guid.Empty;
                 }
+
                 // get the raw checklist, put into the classes, update the asset information, then save the checklist back to a string
                 CHECKLIST chk = ChecklistLoader.LoadChecklist(checklist.rawChecklist);
                 VULN vulnerability;
@@ -258,6 +261,10 @@ namespace openrmf_save_api.Controllers
                     if (!string.IsNullOrEmpty(comments)) vulnerability.COMMENTS = comments;
                     if (!string.IsNullOrEmpty(severityoverride)) vulnerability.SEVERITY_OVERRIDE = severityoverride;
                     if (!string.IsNullOrEmpty(justification)) vulnerability.SEVERITY_JUSTIFICATION = justification;
+                } else { // give a 404   
+                    _logger.LogWarning("UpdateChecklistVulnerability() No Vuln found Updating the Checklist Data: {0}, checklist: {1}, Vulnerability: {2}", 
+                        systemGroupId, artifactId, vulnid);
+                    return NotFound();
                 }
                 
                 // serialize into a string again
@@ -275,14 +282,35 @@ namespace openrmf_save_api.Controllers
                 // now save the new record
                 _logger.LogInformation("UpdateChecklistVulnerability() Saving the updated system: {0}, checklist: {1}, Vulnerability: {2}", 
                     systemGroupId, artifactId, vulnid);
-                await _artifactRepo.UpdateArtifact(artifactId, checklist);
+                bool updateSuccess = await _artifactRepo.UpdateArtifact(artifactId, checklist);
                 _logger.LogInformation("Called UpdateChecklistVulnerability(system:{0}, checklist:{1}, Vulnerability: {2}) successfully", 
                     systemGroupId, artifactId, vulnid);
                 
-                // update the score with eventual consistency
-                _logger.LogInformation("UpdateChecklistVulnerability(system:{0}, checklist:{1}, Vulnerability: {2}) publishing the updated checklist for scoring", 
+                // update the vulnerability information for reporting with eventual consistency
+                // you need the artifact ID, system ID, checklist stigType, checklist version, and then the 
+                // VULN record as well to send it all
+                // De/Serialize into a Dictionary object https://www.newtonsoft.com/json/help/html/DeserializeDictionary.htm
+                if (string.IsNullOrEmpty(details)) details = "";
+                if (string.IsNullOrEmpty(comments)) comments = "";
+                if (string.IsNullOrEmpty(severityoverride)) severityoverride = "";
+                if (string.IsNullOrEmpty(justification)) justification = "";
+                Dictionary<string, string> jsonVulnerabilityInfo = new Dictionary<string, string>();
+                jsonVulnerabilityInfo.Add("finding_details",details);
+                jsonVulnerabilityInfo.Add("status",status);
+                jsonVulnerabilityInfo.Add("comments",comments);
+                jsonVulnerabilityInfo.Add("severity_override",severityoverride);
+                jsonVulnerabilityInfo.Add("severity_justification",justification);
+                jsonVulnerabilityInfo.Add("artifactId",checklist.InternalId.ToString());
+                jsonVulnerabilityInfo.Add("systemGroupId",checklist.systemGroupId);
+                jsonVulnerabilityInfo.Add("stigType",checklist.stigType);
+                jsonVulnerabilityInfo.Add("version",checklist.version);
+                jsonVulnerabilityInfo.Add("vulnId",vulnid);
+                jsonVulnerabilityInfo.Add("updatedBy",checklist.updatedBy.ToString());
+
+                _logger.LogInformation("UpdateChecklistVulnerability(system:{0}, checklist:{1}, Vulnerability: {2}) publishing the updated vulnerability for reporting", 
                     systemGroupId, artifactId, vulnid);
-                _msgServer.Publish("openrmf.checklist.save.update", Encoding.UTF8.GetBytes(artifactId));
+                _msgServer.Publish("openrmf.checklist.save.vulnerability.update", 
+                    Encoding.UTF8.GetBytes(Compression.CompressString(JsonConvert.SerializeObject(jsonVulnerabilityInfo))));
                 _msgServer.Flush();
 
                 // publish an audit event
