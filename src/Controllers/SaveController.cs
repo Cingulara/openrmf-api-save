@@ -216,6 +216,7 @@ namespace openrmf_save_api.Controllers
         /// <param name="details">The vulnerability finding details</param>
         /// <param name="severityoverride">The severity override for the vulnerability</param>
         /// <param name="justification">The justification for the severity override</param>
+        /// <param name="bulkUpdate">Is this a bulk update across all the same checklist types in this system?</param>
         /// <returns>
         /// HTTP Status showing it was updated or that there is an error.
         /// </returns>
@@ -229,99 +230,121 @@ namespace openrmf_save_api.Controllers
         {
           try {
                 _logger.LogInformation("Calling UpdateChecklistVulnerability(system: {0}, checklist: {1})", systemGroupId, artifactId);
-                // see if this is a valid system
-                // update and fill in the same info
-                Artifact checklist = _artifactRepo.GetArtifactBySystem(systemGroupId, artifactId).GetAwaiter().GetResult();
-                // the new raw checklist string
-                string newChecklistString = "";
 
-                if (checklist == null) {
-                    // not a valid system group Id or checklist Id passed in
-                    _logger.LogWarning("UpdateChecklistVulnerability() Error with the System: {0}, Checklist: {1}, Vulnerability: {2} not a valid system Id or checklist Id", 
-                        systemGroupId, artifactId, vulnid);
-                    return NotFound(); 
-                }
-                checklist.updatedOn = DateTime.Now;
-
+                // who issued this edit/save
                 var claim = this.User.Claims.Where(x => x.Type == System.Security.Claims.ClaimTypes.NameIdentifier).FirstOrDefault();
-                // grab the user/system ID from the token if there which is *should* always be
-                if (claim != null) { // get the value
-                    checklist.updatedBy = Guid.Parse(claim.Value);
-                } else {
-                    checklist.updatedBy = Guid.Empty;
-                }
-
-                // get the raw checklist, put into the classes, update the asset information, then save the checklist back to a string
-                CHECKLIST chk = ChecklistLoader.LoadChecklist(checklist.rawChecklist);
+                string newChecklistString = "";
+                Artifact checklist;
+                List<Artifact> bulkChecklists = new List<Artifact>();
+                CHECKLIST chk;
                 VULN vulnerability;
-                vulnerability = chk.STIGS.iSTIG.VULN.Where(y => vulnid == y.STIG_DATA.Where(z => z.VULN_ATTRIBUTE == "Vuln_Num").FirstOrDefault().ATTRIBUTE_DATA).FirstOrDefault();
-                if (vulnerability != null) {
-                    if (!string.IsNullOrEmpty(details)) vulnerability.FINDING_DETAILS = details;
-                    if (!string.IsNullOrEmpty(status)) vulnerability.STATUS = status;
-                    if (!string.IsNullOrEmpty(comments)) vulnerability.COMMENTS = comments;
-                    if (!string.IsNullOrEmpty(severityoverride)) vulnerability.SEVERITY_OVERRIDE = severityoverride;
-                    if (!string.IsNullOrEmpty(justification)) vulnerability.SEVERITY_JUSTIFICATION = justification;
-                } else { // give a 404   
-                    _logger.LogWarning("UpdateChecklistVulnerability() No Vuln found Updating the Checklist Data: {0}, checklist: {1}, Vulnerability: {2}", 
+
+                // get the one checklist to base this all on
+                checklist = _artifactRepo.GetArtifactBySystem(systemGroupId, artifactId).GetAwaiter().GetResult();
+                if (checklist != null)
+                    bulkChecklists.Add(checklist); // will only be 1
+                else {
+                    _logger.LogWarning("UpdateChecklistVulnerability() Error with the System: {0}, Checklist: {1}, Vulnerability: {2} not a valid system Id or checklist Id", 
                         systemGroupId, artifactId, vulnid);
                     return NotFound();
                 }
-                
-                // serialize into a string again
-                System.Xml.Serialization.XmlSerializer xmlSerializer = new System.Xml.Serialization.XmlSerializer(chk.GetType());
-                using(StringWriter textWriter = new StringWriter())                
-                {
-                    xmlSerializer.Serialize(textWriter, chk);
-                    newChecklistString = textWriter.ToString();
+                if (bulkUpdate) {
+                    // go get ALL checklists in this System whose stigType and version are the same as the artifactId passed in
+                    // we will update every single one of them with the same vulnerability information
+                    if (checklist != null) { // valid checklist so go get the type and generate a list
+                        bulkChecklists = _artifactRepo.GetArtifactsByStigType(checklist.stigType, checklist.version).GetAwaiter().GetResult().ToList();
+                    }
                 }
-                // strip out all the extra formatting crap and clean up the XML to be as simple as possible
-                System.Xml.Linq.XDocument xDoc = System.Xml.Linq.XDocument.Parse(newChecklistString, System.Xml.Linq.LoadOptions.None);
-                // save the new serialized checklist record to the database
-                checklist.rawChecklist = xDoc.ToString(System.Xml.Linq.SaveOptions.DisableFormatting);
-                
-                // now save the new record
-                _logger.LogInformation("UpdateChecklistVulnerability() Saving the updated system: {0}, checklist: {1}, Vulnerability: {2}", 
-                    systemGroupId, artifactId, vulnid);
-                bool updateSuccess = await _artifactRepo.UpdateArtifact(artifactId, checklist);
-                _logger.LogInformation("Called UpdateChecklistVulnerability(system:{0}, checklist:{1}, Vulnerability: {2}) successfully", 
-                    systemGroupId, artifactId, vulnid);
-                
-                // update the vulnerability information for reporting with eventual consistency
-                // you need the artifact ID, system ID, checklist stigType, checklist version, and then the 
-                // VULN record as well to send it all
-                // De/Serialize into a Dictionary object https://www.newtonsoft.com/json/help/html/DeserializeDictionary.htm
-                if (string.IsNullOrEmpty(details)) details = "";
-                if (string.IsNullOrEmpty(comments)) comments = "";
-                if (string.IsNullOrEmpty(severityoverride)) severityoverride = "";
-                if (string.IsNullOrEmpty(justification)) justification = "";
-                Dictionary<string, string> jsonVulnerabilityInfo = new Dictionary<string, string>();
-                jsonVulnerabilityInfo.Add("finding_details",details);
-                jsonVulnerabilityInfo.Add("status",status);
-                jsonVulnerabilityInfo.Add("comments",comments);
-                jsonVulnerabilityInfo.Add("severity_override",severityoverride);
-                jsonVulnerabilityInfo.Add("severity_justification",justification);
-                jsonVulnerabilityInfo.Add("artifactId",checklist.InternalId.ToString());
-                jsonVulnerabilityInfo.Add("systemGroupId",checklist.systemGroupId);
-                jsonVulnerabilityInfo.Add("stigType",checklist.stigType);
-                jsonVulnerabilityInfo.Add("version",checklist.version);
-                jsonVulnerabilityInfo.Add("vulnId",vulnid);
-                jsonVulnerabilityInfo.Add("updatedBy",checklist.updatedBy.ToString());
 
-                _logger.LogInformation("UpdateChecklistVulnerability(system:{0}, checklist:{1}, Vulnerability: {2}) publishing the updated vulnerability for reporting", 
-                    systemGroupId, artifactId, vulnid);
-                _msgServer.Publish("openrmf.checklist.save.vulnerability.update", 
-                    Encoding.UTF8.GetBytes(Compression.CompressString(JsonConvert.SerializeObject(jsonVulnerabilityInfo))));
-                _msgServer.Flush();
+                // cycle through the list; only 1 for a !bulkUpdate and possibly more than 1 for a bulkUpdate
+                foreach (Artifact checklistId in bulkChecklists) {
+                    // reset the new raw checklist string
+                    newChecklistString = "";
+                
+                    _logger.LogWarning("UpdateChecklistVulnerability() Saving Vulnerability with the System: {0}, Checklist: {1}, Vulnerability: {2}", 
+                        systemGroupId, checklistId.InternalId.ToString(), vulnid);
 
-                // publish an audit event
-                _logger.LogInformation("UpdateChecklistVulnerability() publish an audit message on updating a system: {0}, checklist: {1}, Vulnerability: {2}.", 
-                    systemGroupId, artifactId, vulnid);
-                Audit newAudit = GenerateAuditMessage(claim, "update checklist vulnerability data");
-                newAudit.message = string.Format("UpdateChecklistVulnerability() update the system: {0}, checklist: {1}, Vulnerability: {2}.", 
-                    systemGroupId, artifactId, vulnid);
-                newAudit.url = string.Format("PUT /artifact/{0}/vulnid/{1}", artifactId, vulnid);
-                _msgServer.Publish("openrmf.audit.save", Encoding.UTF8.GetBytes(Compression.CompressString(JsonConvert.SerializeObject(newAudit))));
-                _msgServer.Flush();
+                    checklist.updatedOn = DateTime.Now;
+                    // grab the user/system ID from the token if it is there, which is *should* always be
+                    if (claim != null) { // get the value
+                        checklist.updatedBy = Guid.Parse(claim.Value);
+                    } else {
+                        checklist.updatedBy = Guid.Empty;
+                    }
+
+                    // get the raw checklist, put into the classes, update the asset information, then save the checklist back to a string
+                    chk = ChecklistLoader.LoadChecklist(checklist.rawChecklist);
+                    vulnerability = chk.STIGS.iSTIG.VULN.Where(y => vulnid == y.STIG_DATA.Where(z => z.VULN_ATTRIBUTE == "Vuln_Num").FirstOrDefault().ATTRIBUTE_DATA).FirstOrDefault();
+                    if (vulnerability != null) {
+                        if (!string.IsNullOrEmpty(details)) vulnerability.FINDING_DETAILS = details;
+                        if (!string.IsNullOrEmpty(status)) vulnerability.STATUS = status;
+                        if (!string.IsNullOrEmpty(comments)) vulnerability.COMMENTS = comments;
+                        if (!string.IsNullOrEmpty(severityoverride)) vulnerability.SEVERITY_OVERRIDE = severityoverride;
+                        if (!string.IsNullOrEmpty(justification)) vulnerability.SEVERITY_JUSTIFICATION = justification;
+                    } else { // record and keep going in this list 
+                        _logger.LogWarning("UpdateChecklistVulnerability() No Vuln found Updating the System Checklist Data: {0}, Checklist: {1}, Vulnerability: {2}", 
+                            systemGroupId, checklistId.InternalId.ToString(), vulnid);
+                        if (!bulkUpdate) {
+                            return NotFound();
+                        }
+                        continue; // go get the next one
+                    }
+                    
+                    // serialize into a string again
+                    System.Xml.Serialization.XmlSerializer xmlSerializer = new System.Xml.Serialization.XmlSerializer(chk.GetType());
+                    using(StringWriter textWriter = new StringWriter())                
+                    {
+                        xmlSerializer.Serialize(textWriter, chk);
+                        newChecklistString = textWriter.ToString();
+                    }
+                    // strip out all the extra formatting crap and clean up the XML to be as simple as possible
+                    System.Xml.Linq.XDocument xDoc = System.Xml.Linq.XDocument.Parse(newChecklistString, System.Xml.Linq.LoadOptions.None);
+                    // save the new serialized checklist record to the database
+                    checklist.rawChecklist = xDoc.ToString(System.Xml.Linq.SaveOptions.DisableFormatting);
+                    
+                    // now save the new record
+                    _logger.LogInformation("UpdateChecklistVulnerability() Saving the updated system: {0}, checklist: {1}, Vulnerability: {2}", 
+                        systemGroupId, checklistId.InternalId.ToString(), vulnid);
+                    bool updateSuccess = await _artifactRepo.UpdateArtifact(checklistId.InternalId.ToString(), checklist);
+                    _logger.LogInformation("Called UpdateChecklistVulnerability(system:{0}, checklist:{1}, Vulnerability: {2}) successfully", 
+                        systemGroupId, checklistId.InternalId.ToString(), vulnid);
+                    
+                    // update the vulnerability information for reporting with eventual consistency
+                    // De/Serialize into a Dictionary object https://www.newtonsoft.com/json/help/html/DeserializeDictionary.htm
+                    // this updates the reporting and the score (so far)
+                    if (string.IsNullOrEmpty(details)) details = "";
+                    if (string.IsNullOrEmpty(comments)) comments = "";
+                    if (string.IsNullOrEmpty(severityoverride)) severityoverride = "";
+                    if (string.IsNullOrEmpty(justification)) justification = "";
+                    Dictionary<string, string> jsonVulnerabilityInfo = new Dictionary<string, string>();
+                    jsonVulnerabilityInfo.Add("finding_details",details);
+                    jsonVulnerabilityInfo.Add("status",status);
+                    jsonVulnerabilityInfo.Add("comments",comments);
+                    jsonVulnerabilityInfo.Add("severity_override",severityoverride);
+                    jsonVulnerabilityInfo.Add("severity_justification",justification);
+                    jsonVulnerabilityInfo.Add("artifactId",checklist.InternalId.ToString());
+                    jsonVulnerabilityInfo.Add("systemGroupId",checklist.systemGroupId);
+                    jsonVulnerabilityInfo.Add("stigType",checklist.stigType);
+                    jsonVulnerabilityInfo.Add("version",checklist.version);
+                    jsonVulnerabilityInfo.Add("vulnId",vulnid);
+                    jsonVulnerabilityInfo.Add("updatedBy",checklist.updatedBy.ToString());
+
+                    _logger.LogInformation("UpdateChecklistVulnerability(system:{0}, checklist:{1}, Vulnerability: {2}) publishing the updated vulnerability for reporting", 
+                        systemGroupId, checklistId.InternalId.ToString(), vulnid);
+                    _msgServer.Publish("openrmf.checklist.save.vulnerability.update", 
+                        Encoding.UTF8.GetBytes(Compression.CompressString(JsonConvert.SerializeObject(jsonVulnerabilityInfo))));
+                    _msgServer.Flush();
+
+                    // publish an audit event
+                    _logger.LogInformation("UpdateChecklistVulnerability() publish an audit message on updating a system: {0}, checklist: {1}, Vulnerability: {2}.", 
+                        systemGroupId, checklistId.InternalId.ToString(), vulnid);
+                    Audit newAudit = GenerateAuditMessage(claim, "update checklist vulnerability data");
+                    newAudit.message = string.Format("UpdateChecklistVulnerability() update the system: {0}, checklist: {1}, Vulnerability: {2}.", 
+                        systemGroupId, checklistId.InternalId.ToString(), vulnid);
+                    newAudit.url = string.Format("PUT /artifact/{0}/vulnid/{1}", checklistId.InternalId.ToString(), vulnid);
+                    _msgServer.Publish("openrmf.audit.save", Encoding.UTF8.GetBytes(Compression.CompressString(JsonConvert.SerializeObject(newAudit))));
+                    _msgServer.Flush();
+                }
 
                 return Ok();
             }
@@ -331,7 +354,6 @@ namespace openrmf_save_api.Controllers
                 return BadRequest();
             }
         }
-
 
         /// <summary>
         /// Update the passed in checklist with the latest version and release information
@@ -871,7 +893,7 @@ namespace openrmf_save_api.Controllers
         private string SanitizeData (string rawdata) {
             return rawdata.Replace("\t","").Replace(">\n<","><");
         }
-        
+
         private Audit GenerateAuditMessage(System.Security.Claims.Claim claim, string action) {
             Audit audit = new Audit();
             audit.program = "Save API";
