@@ -20,6 +20,9 @@ namespace openrmf_save_api.Data {
         // get all artifacts based on the system ID
         Task<IEnumerable<Artifact>> GetSystemArtifacts(string system);
 
+        // get all artifacts by checklist STIG type and version
+        Task<IEnumerable<Artifact>> GetArtifactsByStigType(string stigType, string version);
+
         // add new note document
         Task<Artifact> AddArtifact(Artifact item);
 
