@@ -75,7 +75,6 @@ namespace openrmf_save_api.Data {
         }
 
         // query after body text, updated time, and header image size
-        //
         public async Task<IEnumerable<Artifact>> GetArtifact(string bodyText, DateTime updatedFrom, long headerSizeLimit)
         {
             try
@@ -83,6 +82,22 @@ namespace openrmf_save_api.Data {
                 var query = _context.Artifacts.Find(artifact => artifact.title.Contains(bodyText) &&
                                     artifact.updatedOn >= updatedFrom);
 
+                return await query.ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                // log or manage the exception
+                throw ex;
+            }
+        }
+        
+        // query on the artifact stigType and version
+        public async Task<IEnumerable<Artifact>> GetArtifactsByStigType(string stigType, string version)
+        {
+            try
+            {
+                var query = _context.Artifacts.Find(artifact => artifact.stigType == stigType && 
+                            artifact.version == version);
                 return await query.ToListAsync();
             }
             catch (Exception ex)
