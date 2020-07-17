@@ -7,7 +7,7 @@
     <ProjectGuid>{b1851548-3b3e-4f71-a428-9b9889b28e3b}</ProjectGuid>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
-    <Version>1.02.01</Version>
+    <Version>1.02.02</Version>
     <InformationalVersion>This is the OpenRMF Tool Save API from Cingulara</InformationalVersion>
   </PropertyGroup>
 
