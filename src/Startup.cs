@@ -7,7 +7,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Swashbuckle.AspNetCore.Swagger;
+using Microsoft.Extensions.Hosting;
+using Microsoft.OpenApi.Models;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http;
@@ -23,6 +24,8 @@ namespace openrmf_save_api
 {
     public class Startup
     {
+        readonly string MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
+        
         public Startup(IConfiguration configuration)
         {
             Configuration = configuration;
@@ -34,11 +37,13 @@ namespace openrmf_save_api
         public void ConfigureServices(IServiceCollection services)
         {
             // Register the database components
-            services.Configure<Settings>(options =>
-            {
-                options.ConnectionString = Environment.GetEnvironmentVariable("MONGODBCONNECTION");
-                options.Database = Environment.GetEnvironmentVariable("MONGODB");
-            });
+            if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DBTYPE")) || Environment.GetEnvironmentVariable("DBTYPE").ToLower() == "mongo") {
+                services.Configure<Settings>(options =>
+                {
+                    options.ConnectionString = Environment.GetEnvironmentVariable("DBCONNECTION");
+                    options.Database = Environment.GetEnvironmentVariable("DB");
+                });
+            }
             
             // Use "OpenTracing.Contrib.NetCore" to automatically generate spans for ASP.NET Core
             services.AddSingleton<ITracer>(serviceProvider =>  
@@ -102,13 +107,13 @@ namespace openrmf_save_api
             // Register the Swagger generator, defining one or more Swagger documents
             services.AddSwaggerGen(c =>
             {
-                c.SwaggerDoc("v1", new Info { Title = "OpenRMF Save API", Version = "v1", 
+                c.SwaggerDoc("v1", new OpenApiInfo { Title = "OpenRMF Save API", Version = "v1", 
                     Description = "The Save API that goes with the OpenRMF tool",
-                    Contact = new Contact
+                    Contact = new OpenApiContact
                     {
                         Name = "Dale Bingham",
                         Email = "dale.bingham@cingulara.com",
-                        Url = "https://github.com/Cingulara/openrmf-api-save"
+                        Url = new Uri("https://github.com/Cingulara/openrmf-api-save")
                     } });
             });
 
@@ -153,26 +158,21 @@ namespace openrmf_save_api
                 options.AddPolicy("Assessor", policy => policy.RequireRole("roles", "[Assessor]"));
             });
 
-            // ********************
-            // USE CORS
-            // ********************
+            // add the CORS setup
             services.AddCors(options =>
             {
-                options.AddPolicy("AllowAll",
+                options.AddPolicy(name: MyAllowSpecificOrigins,
                     builder =>
                     {
-                        builder
-                        .AllowAnyOrigin() 
-                        .AllowAnyMethod()
-                        .AllowAnyHeader()
-                        .AllowCredentials();
+                        builder.AllowAnyHeader().AllowAnyMethod().AllowAnyOrigin();
                     });
             });
-            services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
+
+            services.AddControllers();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
             // Custom Metrics to count requests for each endpoint and the method
             var counter = Metrics.CreateCounter("openrmf_save_api_path_counter", "Counts requests to OpenRMF endpoints", new CounterConfiguration
@@ -207,13 +207,16 @@ namespace openrmf_save_api
                 c.SwaggerEndpoint("/swagger/v1/swagger.json", "OpenRMF Save API V1");
             });
 
-            // ********************
-            // USE CORS
-            // ********************
-            app.UseCors("AllowAll");
-            app.UseAuthentication();
             app.UseHttpsRedirection();
-            app.UseMvc();
+            app.UseRouting();
+            app.UseCors(MyAllowSpecificOrigins);
+            // this has to go here
+            app.UseAuthentication();
+            app.UseAuthorization();
+            app.UseEndpoints(endpoints =>
+            {
+                endpoints.MapControllers();
+            });
         }
     }
 }
