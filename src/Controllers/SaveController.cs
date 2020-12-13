@@ -427,11 +427,11 @@ namespace openrmf_save_api.Controllers
                         VULN vulnerability;
                         string vulnid = "";
                         foreach (VULN v in upgradeArtifact.CHECKLIST.STIGS.iSTIG.VULN){
-                            vulnid = v.STIG_DATA.Where(z => z.VULN_ATTRIBUTE == "Vuln_Num").FirstOrDefault().ATTRIBUTE_DATA;
+                            vulnid = v.STIG_DATA.Where(z => z.VULN_ATTRIBUTE == "Rule_Ver").FirstOrDefault().ATTRIBUTE_DATA;
                             // see if the updated checklist and current checklist have the same vulnerability
-                            if (art.CHECKLIST.STIGS.iSTIG.VULN.Where(y => y.STIG_DATA.Where(q => q.VULN_ATTRIBUTE == "Vuln_Num").FirstOrDefault().ATTRIBUTE_DATA == vulnid).FirstOrDefault() != null) {
-                                vulnerability = art.CHECKLIST.STIGS.iSTIG.VULN.Where(y => v.STIG_DATA.Where(z => z.VULN_ATTRIBUTE == "Vuln_Num").FirstOrDefault().ATTRIBUTE_DATA 
-                                        == y.STIG_DATA.Where(z => z.VULN_ATTRIBUTE == "Vuln_Num").FirstOrDefault().ATTRIBUTE_DATA).FirstOrDefault();
+                            if (art.CHECKLIST.STIGS.iSTIG.VULN.Where(y => y.STIG_DATA.Where(q => q.VULN_ATTRIBUTE == "Rule_Ver").FirstOrDefault().ATTRIBUTE_DATA == vulnid).FirstOrDefault() != null) {
+                                vulnerability = art.CHECKLIST.STIGS.iSTIG.VULN.Where(y => v.STIG_DATA.Where(z => z.VULN_ATTRIBUTE == "Rule_Ver").FirstOrDefault().ATTRIBUTE_DATA 
+                                        == y.STIG_DATA.Where(z => z.VULN_ATTRIBUTE == "Rule_Ver").FirstOrDefault().ATTRIBUTE_DATA).FirstOrDefault();
                                 if (vulnerability != null) {
                                     // copy the contents from the older checklist into the newer one
                                     if (!string.IsNullOrEmpty(vulnerability.FINDING_DETAILS)) v.FINDING_DETAILS = vulnerability.FINDING_DETAILS;
