@@ -92,12 +92,12 @@ namespace openrmf_save_api.Data {
         }
         
         // query on the artifact stigType and version
-        public async Task<IEnumerable<Artifact>> GetArtifactsByStigType(string stigType, string version)
+        public async Task<IEnumerable<Artifact>> GetArtifactsByStigType(string systemGroupId, string stigType)
         {
             try
             {
                 var query = _context.Artifacts.Find(artifact => artifact.stigType == stigType && 
-                            artifact.version == version);
+                            artifact.systemGroupId == systemGroupId);
                 return await query.ToListAsync();
             }
             catch (Exception ex)

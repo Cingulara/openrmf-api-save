@@ -252,7 +252,7 @@ namespace openrmf_save_api.Controllers
                     // go get ALL checklists in this System whose stigType and version are the same as the artifactId passed in
                     // we will update every single one of them with the same vulnerability information
                     if (checklist != null) { // valid checklist so go get the type and generate a list
-                        bulkChecklists = _artifactRepo.GetArtifactsByStigType(checklist.stigType, checklist.version).GetAwaiter().GetResult().ToList();
+                        bulkChecklists = _artifactRepo.GetArtifactsByStigType(systemGroupId, checklist.stigType).GetAwaiter().GetResult().ToList();
                     }
                 }
 
@@ -264,16 +264,16 @@ namespace openrmf_save_api.Controllers
                     _logger.LogWarning("UpdateChecklistVulnerability() Saving Vulnerability with the System: {0}, Checklist: {1}, Vulnerability: {2}", 
                         systemGroupId, checklistId.InternalId.ToString(), vulnid);
 
-                    checklist.updatedOn = DateTime.Now;
+                    checklistId.updatedOn = DateTime.Now;
                     // grab the user/system ID from the token if it is there, which is *should* always be
                     if (claim != null) { // get the value
-                        checklist.updatedBy = Guid.Parse(claim.Value);
+                        checklistId.updatedBy = Guid.Parse(claim.Value);
                     } else {
-                        checklist.updatedBy = Guid.Empty;
+                        checklistId.updatedBy = Guid.Empty;
                     }
 
                     // get the raw checklist, put into the classes, update the asset information, then save the checklist back to a string
-                    chk = ChecklistLoader.LoadChecklist(checklist.rawChecklist);
+                    chk = ChecklistLoader.LoadChecklist(checklistId.rawChecklist);
                     vulnerability = chk.STIGS.iSTIG.VULN.Where(y => vulnid == y.STIG_DATA.Where(z => z.VULN_ATTRIBUTE == "Vuln_Num").FirstOrDefault().ATTRIBUTE_DATA).FirstOrDefault();
                     if (vulnerability != null) {
                         if (!string.IsNullOrEmpty(details)) vulnerability.FINDING_DETAILS = details;
@@ -300,12 +300,12 @@ namespace openrmf_save_api.Controllers
                     // strip out all the extra formatting crap and clean up the XML to be as simple as possible
                     System.Xml.Linq.XDocument xDoc = System.Xml.Linq.XDocument.Parse(newChecklistString, System.Xml.Linq.LoadOptions.None);
                     // save the new serialized checklist record to the database
-                    checklist.rawChecklist = xDoc.ToString(System.Xml.Linq.SaveOptions.DisableFormatting);
+                    checklistId.rawChecklist = xDoc.ToString(System.Xml.Linq.SaveOptions.DisableFormatting);
                     
                     // now save the new record
                     _logger.LogInformation("UpdateChecklistVulnerability() Saving the updated system: {0}, checklist: {1}, Vulnerability: {2}", 
                         systemGroupId, checklistId.InternalId.ToString(), vulnid);
-                    bool updateSuccess = await _artifactRepo.UpdateArtifact(checklistId.InternalId.ToString(), checklist);
+                    bool updateSuccess = await _artifactRepo.UpdateArtifact(checklistId.InternalId.ToString(), checklistId);
                     _logger.LogInformation("Called UpdateChecklistVulnerability(system:{0}, checklist:{1}, Vulnerability: {2}) successfully", 
                         systemGroupId, checklistId.InternalId.ToString(), vulnid);
                     
@@ -322,12 +322,12 @@ namespace openrmf_save_api.Controllers
                     jsonVulnerabilityInfo.Add("comments",comments);
                     jsonVulnerabilityInfo.Add("severity_override",severityoverride);
                     jsonVulnerabilityInfo.Add("severity_justification",justification);
-                    jsonVulnerabilityInfo.Add("artifactId",checklist.InternalId.ToString());
-                    jsonVulnerabilityInfo.Add("systemGroupId",checklist.systemGroupId);
-                    jsonVulnerabilityInfo.Add("stigType",checklist.stigType);
-                    jsonVulnerabilityInfo.Add("version",checklist.version);
+                    jsonVulnerabilityInfo.Add("artifactId",checklistId.InternalId.ToString());
+                    jsonVulnerabilityInfo.Add("systemGroupId",checklistId.systemGroupId);
+                    jsonVulnerabilityInfo.Add("stigType",checklistId.stigType);
+                    jsonVulnerabilityInfo.Add("version",checklistId.version);
                     jsonVulnerabilityInfo.Add("vulnId",vulnid);
-                    jsonVulnerabilityInfo.Add("updatedBy",checklist.updatedBy.ToString());
+                    jsonVulnerabilityInfo.Add("updatedBy",checklistId.updatedBy.ToString());
 
                     _logger.LogInformation("UpdateChecklistVulnerability(system:{0}, checklist:{1}, Vulnerability: {2}) publishing the updated vulnerability for reporting", 
                         systemGroupId, checklistId.InternalId.ToString(), vulnid);
@@ -427,11 +427,11 @@ namespace openrmf_save_api.Controllers
                         VULN vulnerability;
                         string vulnid = "";
                         foreach (VULN v in upgradeArtifact.CHECKLIST.STIGS.iSTIG.VULN){
-                            vulnid = v.STIG_DATA.Where(z => z.VULN_ATTRIBUTE == "Vuln_Num").FirstOrDefault().ATTRIBUTE_DATA;
+                            vulnid = v.STIG_DATA.Where(z => z.VULN_ATTRIBUTE == "Rule_Ver").FirstOrDefault().ATTRIBUTE_DATA;
                             // see if the updated checklist and current checklist have the same vulnerability
-                            if (art.CHECKLIST.STIGS.iSTIG.VULN.Where(y => y.STIG_DATA.Where(q => q.VULN_ATTRIBUTE == "Vuln_Num").FirstOrDefault().ATTRIBUTE_DATA == vulnid).FirstOrDefault() != null) {
-                                vulnerability = art.CHECKLIST.STIGS.iSTIG.VULN.Where(y => v.STIG_DATA.Where(z => z.VULN_ATTRIBUTE == "Vuln_Num").FirstOrDefault().ATTRIBUTE_DATA 
-                                        == y.STIG_DATA.Where(z => z.VULN_ATTRIBUTE == "Vuln_Num").FirstOrDefault().ATTRIBUTE_DATA).FirstOrDefault();
+                            if (art.CHECKLIST.STIGS.iSTIG.VULN.Where(y => y.STIG_DATA.Where(q => q.VULN_ATTRIBUTE == "Rule_Ver").FirstOrDefault().ATTRIBUTE_DATA == vulnid).FirstOrDefault() != null) {
+                                vulnerability = art.CHECKLIST.STIGS.iSTIG.VULN.Where(y => v.STIG_DATA.Where(z => z.VULN_ATTRIBUTE == "Rule_Ver").FirstOrDefault().ATTRIBUTE_DATA 
+                                        == y.STIG_DATA.Where(z => z.VULN_ATTRIBUTE == "Rule_Ver").FirstOrDefault().ATTRIBUTE_DATA).FirstOrDefault();
                                 if (vulnerability != null) {
                                     // copy the contents from the older checklist into the newer one
                                     if (!string.IsNullOrEmpty(vulnerability.FINDING_DETAILS)) v.FINDING_DETAILS = vulnerability.FINDING_DETAILS;
