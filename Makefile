@@ -1,4 +1,4 @@
-VERSION ?= 1.03.01
+VERSION ?= 1.04.00
 NAME ?= "openrmf-api-save"
 AUTHOR ?= "Dale Bingham"
 PORT_EXT ?= 8082
