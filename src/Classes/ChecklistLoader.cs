@@ -10,7 +10,7 @@ namespace openrmf_save_api.Classes
     {        
         public static CHECKLIST LoadChecklist(string rawChecklist) {
             CHECKLIST myChecklist = new CHECKLIST();
-            rawChecklist = rawChecklist.Replace("\n","").Replace("\t","");
+            rawChecklist = rawChecklist.Replace("\t","");
             XmlDocument xmlDoc = new XmlDocument();
             xmlDoc.LoadXml(rawChecklist);
             XmlNodeList assetList = xmlDoc.GetElementsByTagName("ASSET");
