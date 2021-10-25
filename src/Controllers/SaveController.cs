@@ -857,7 +857,7 @@ namespace openrmf_save_api.Controllers
             newArtifact.rawChecklist = rawChecklist;
 
             // parse the checklist and get the data needed
-            rawChecklist = rawChecklist.Replace("\n","").Replace("\t","");
+            rawChecklist = rawChecklist.Replace("\t","");
             XmlDocument xmlDoc = new XmlDocument();
             xmlDoc.LoadXml(rawChecklist);
 
