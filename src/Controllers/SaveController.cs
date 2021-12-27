@@ -901,7 +901,7 @@ namespace openrmf_save_api.Controllers
         }
 
         private string SanitizeData (string rawdata) {
-            return rawdata.Replace("\t","").Replace(">\n<","><");
+            return rawdata.Replace("\t","");
         }
 
         private Audit GenerateAuditMessage(System.Security.Claims.Claim claim, string action) {
