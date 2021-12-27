@@ -25,5 +25,13 @@ namespace openrmf_save_api.Data
             }
         }
 
+        public IMongoCollection<SystemGroup> SystemGroups
+        {
+            get
+            {
+                return _database.GetCollection<SystemGroup>("SystemGroups");
+            }
+        }
+
     }
 }
