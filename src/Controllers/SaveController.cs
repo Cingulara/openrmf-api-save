@@ -108,6 +108,7 @@ namespace openrmf_save_api.Controllers
         /// <param name="assettype">The asset type of the checklist machine</param>
         /// <param name="machinerole">The role of the checklist machine</param>
         /// <param name="checklistFile">A new Checklist or SCAP scan results file, if any</param>
+        /// <param name="tagList">List of tags to add to a checklist, pipe delimited</param>
         /// <returns>
         /// HTTP Status showing it was updated or that there is an error.
         /// </returns>
@@ -117,7 +118,7 @@ namespace openrmf_save_api.Controllers
         [HttpPut("artifact/{artifactId}")]
         [Authorize(Roles = "Administrator,Editor")]
         public async Task<IActionResult> UpdateChecklist(string artifactId, string systemGroupId, string hostname, string domainname, 
-            string techarea, string assettype, string machinerole, IFormFile checklistFile)
+            string techarea, string assettype, string machinerole, IFormFile checklistFile, string tagList)
         {
           try {
                 _logger.LogInformation("Calling UpdateChecklist(system: {0}, checklist: {1})", systemGroupId, artifactId);
@@ -170,6 +171,15 @@ namespace openrmf_save_api.Controllers
                     chk.ASSET.ROLE = machinerole;
                 else 
                     chk.ASSET.ROLE = "None";
+
+                checklist.tags = new List<string>(); // by default reset it, add if passed in
+                if (!string.IsNullOrEmpty(tagList)) {
+                    string[] tags = tagList.Split('|');
+                    foreach (string tag in tags) {
+                        if (!string.IsNullOrEmpty(tag))
+                            checklist.tags.Add(tag);
+                    }
+                }
 
                 // serialize into a string again
                 System.Xml.Serialization.XmlSerializer xmlSerializer = new System.Xml.Serialization.XmlSerializer(chk.GetType());
@@ -891,7 +901,7 @@ namespace openrmf_save_api.Controllers
         }
 
         private string SanitizeData (string rawdata) {
-            return rawdata.Replace("\t","").Replace(">\n<","><");
+            return rawdata.Replace("\t","");
         }
 
         private Audit GenerateAuditMessage(System.Security.Claims.Claim claim, string action) {
