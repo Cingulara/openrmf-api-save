@@ -31,3 +31,6 @@ RUN chown openrmfuser:openrmfgroup /app
 USER 1001
 # start the application
 ENTRYPOINT ["./openrmf-api-save"]
+
+LABEL org.opencontainers.image.source https://github.com/Cingulara/openrmf-api-save
+LABEL maintainer="dale.bingham@cingulara.com"
