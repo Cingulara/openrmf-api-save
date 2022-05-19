@@ -1,6 +1,8 @@
 ![.NET Core Build and Test](https://github.com/Cingulara/openrmf-api-save/workflows/.NET%20Core%20Build%20and%20Test/badge.svg)
 
 # openrmf-api-save
+> *As of version 1.8, this functionality is moved into the openrmf-api-read project to reduce the footprint and number of components.*
+
 This is the OpenRMF Save API for saving a checklist and its metadata. It has two calls.
 
 * POST to / to save a new document
