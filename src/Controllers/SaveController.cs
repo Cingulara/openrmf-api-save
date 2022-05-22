@@ -859,6 +859,61 @@ namespace openrmf_save_api.Controllers
             }
         }
 
+        /// <summary>
+        /// DELETE Updating a system package record by removing the Nessus patch scan file.
+        /// </summary>
+        /// <param name="systemGroupId">The ID of the system passed in</param>
+        /// <returns>
+        /// HTTP Status showing it was updated or that there is an error.
+        /// </returns>
+        /// <response code="200">Returns if the system package was updated</response>
+        /// <response code="400">If the item did not update correctly</response>
+        /// <response code="404">If the system ID was not found</response>
+        [HttpDelete("system/{systemGroupId}/patchscan")]
+        [Authorize(Roles = "Administrator,Editor")]
+        public async Task<IActionResult> DeleteSystemPatchScanFile(string systemGroupId)
+        {
+          try {
+                _logger.LogInformation("Calling DeleteSystemPatchScanFile({0})", systemGroupId);
+                // see if this is a valid system
+                // update and fill in the same info
+                SystemGroup sg = _systemGroupRepo.GetSystemGroup(systemGroupId).GetAwaiter().GetResult();
+                if (sg == null) {
+                    // not a valid system group ID passed in
+                    _logger.LogWarning("DeleteSystemPatchScanFile() Error with the System {0} not a valid system Id", systemGroupId);
+                    return NotFound(); 
+                }
+                sg.updatedOn = DateTime.Now;
+                sg.rawNessusFile = "";
+                sg.nessusFilename = "";
+
+                var claim = this.User.Claims.Where(x => x.Type == System.Security.Claims.ClaimTypes.NameIdentifier).FirstOrDefault();
+                // grab the user/system ID from the token if there which is *should* always be
+                if (claim != null) { // get the value
+                    sg.updatedBy = Guid.Parse(claim.Value);
+                }
+                // save the new record
+                _logger.LogInformation("DeleteSystemPatchScanFile() Saving the updated system package and removed the patch scan file {0}", systemGroupId);
+                await _systemGroupRepo.UpdateSystemGroup(systemGroupId, sg);
+                _logger.LogInformation("Called UpdateSystem({0}) successfully", systemGroupId);
+                // we are finally done
+
+                // publish an audit event
+                _logger.LogInformation("DeleteSystemPatchScanFile() publish an audit message on updating the system package {0}.", sg.title);
+                Audit newAudit = GenerateAuditMessage(claim, "update system");
+                newAudit.message = string.Format("DeleteSystemPatchScanFile() update the system and remove the system package patch scan file ({0}) {1}.", sg.InternalId.ToString(), sg.title);
+                newAudit.url = string.Format("DELETE /system/{0}/patchscan",systemGroupId);
+                _msgServer.Publish("openrmf.audit.save", Encoding.UTF8.GetBytes(Compression.CompressString(JsonConvert.SerializeObject(newAudit))));
+                _msgServer.Flush();
+
+                return Ok();
+            }
+            catch (Exception ex) {
+                _logger.LogError(ex, "DeleteSystemPatchScanFile() Error Updating the System {0}", systemGroupId);
+                return BadRequest();
+            }
+        }
+
         #endregion
 
         #region Private Functions
